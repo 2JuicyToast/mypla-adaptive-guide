@@ -10,33 +10,91 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CurrentRouteImport } from './routes/current'
+import { Route as ExploreRouteImport } from './routes/explore'
+import { Route as ReflectRouteImport } from './routes/reflect'
+import { Route as ScheduleRouteImport } from './routes/schedule'
+import { Route as UpcomingRouteImport } from './routes/upcoming'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CurrentRoute = CurrentRouteImport.update({
+  id: '/current',
+  path: '/current',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExploreRoute = ExploreRouteImport.update({
+  id: '/explore',
+  path: '/explore',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReflectRoute = ReflectRouteImport.update({
+  id: '/reflect',
+  path: '/reflect',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScheduleRoute = ScheduleRouteImport.update({
+  id: '/schedule',
+  path: '/schedule',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UpcomingRoute = UpcomingRouteImport.update({
+  id: '/upcoming',
+  path: '/upcoming',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/current': typeof CurrentRoute
+  '/explore': typeof ExploreRoute
+  '/reflect': typeof ReflectRoute
+  '/schedule': typeof ScheduleRoute
+  '/upcoming': typeof UpcomingRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/current': typeof CurrentRoute
+  '/explore': typeof ExploreRoute
+  '/reflect': typeof ReflectRoute
+  '/schedule': typeof ScheduleRoute
+  '/upcoming': typeof UpcomingRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/current': typeof CurrentRoute
+  '/explore': typeof ExploreRoute
+  '/reflect': typeof ReflectRoute
+  '/schedule': typeof ScheduleRoute
+  '/upcoming': typeof UpcomingRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    '/' | '/current' | '/explore' | '/reflect' | '/schedule' | '/upcoming'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/current' | '/explore' | '/reflect' | '/schedule' | '/upcoming'
+  id:
+    | '__root__'
+    | '/'
+    | '/current'
+    | '/explore'
+    | '/reflect'
+    | '/schedule'
+    | '/upcoming'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CurrentRoute: typeof CurrentRoute
+  ExploreRoute: typeof ExploreRoute
+  ReflectRoute: typeof ReflectRoute
+  ScheduleRoute: typeof ScheduleRoute
+  UpcomingRoute: typeof UpcomingRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +106,51 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/current': {
+      id: '/current'
+      path: '/current'
+      fullPath: '/current'
+      preLoaderRoute: typeof CurrentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/explore': {
+      id: '/explore'
+      path: '/explore'
+      fullPath: '/explore'
+      preLoaderRoute: typeof ExploreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reflect': {
+      id: '/reflect'
+      path: '/reflect'
+      fullPath: '/reflect'
+      preLoaderRoute: typeof ReflectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/schedule': {
+      id: '/schedule'
+      path: '/schedule'
+      fullPath: '/schedule'
+      preLoaderRoute: typeof ScheduleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/upcoming': {
+      id: '/upcoming'
+      path: '/upcoming'
+      fullPath: '/upcoming'
+      preLoaderRoute: typeof UpcomingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CurrentRoute: CurrentRoute,
+  ExploreRoute: ExploreRoute,
+  ReflectRoute: ReflectRoute,
+  ScheduleRoute: ScheduleRoute,
+  UpcomingRoute: UpcomingRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
