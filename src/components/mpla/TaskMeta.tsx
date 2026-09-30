@@ -3,7 +3,8 @@ import { CalendarDays, Clock, Gauge } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { EnergyLevel, Priority } from "@/lib/mpla-types";
 
-export function formatDueDate(iso: string) {
+export function formatDueDate(iso?: string | null) {
+  if (!iso) return "No date";
   const date = new Date(`${iso}T00:00:00`);
   return date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }
@@ -66,7 +67,7 @@ export function TaskMetaRow({
   estimatedMinutes,
   energyRequired,
 }: {
-  dueDate: string;
+  dueDate?: string | null;
   estimatedMinutes: number;
   energyRequired: EnergyLevel;
 }) {

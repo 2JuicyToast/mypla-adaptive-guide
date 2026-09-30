@@ -1,0 +1,15 @@
+[project]
+name = "mypla-foundation"
+version = "0.1.0"
+description = "Deterministic Python/FastAPI foundation for MyPLA"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.142.2",
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+    "supabase>=2.31.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

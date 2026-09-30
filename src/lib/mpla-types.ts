@@ -25,7 +25,7 @@ export interface Task {
   course?: string;
   priority: Priority;
   /** ISO date string. */
-  dueDate: string;
+  dueDate?: string | null;
   estimatedMinutes: number;
   energyRequired: EnergyLevel;
   status: TaskStatus;
