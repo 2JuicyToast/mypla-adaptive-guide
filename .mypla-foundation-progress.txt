@@ -1,5 +1,5 @@
 CURRENT STATUS
-The project contains substantial MyPLA foundations: a React frontend, FastAPI routes, deterministic planning services, Supabase adapters, and Supabase Auth UI. The current workspace is not connected to Supabase because its URL and publishable key are not configured here. This session's build and test commands are blocked by missing installed dependencies.
+The project contains substantial MyPLA foundations: a React frontend, FastAPI routes, deterministic planning services, Supabase adapters, and Supabase Auth UI. The Supabase URL and publishable key are now configured in Replit Secrets, and the app is running in Supabase mode. A signed-in session is still needed to verify authenticated database reads/writes and task persistence.
 
 This report is a hidden dotfile at the project root. It is not shown in the app, but anyone with access to the workspace or repository can read it; it is not private storage. The personal narrative attachment was ignored and is not copied into this report.
 
@@ -11,25 +11,29 @@ Implemented in the repository:
 - Python service/API tests covering memory-mode behaviors such as task completion, priority, proposal decisions, assumptions, and schedule suggestions.
 
 Verified in this session:
-- Source and test files were inspected to assess implementation status.
-- No requested verification item passed in this session. Build and tests could not start because dependencies are not installed; Supabase is not configured.
+- Frontend production build completed successfully.
+- Python suite passed: 23 tests.
+- Existing Replit workflow started; the app displays the Supabase sign-in screen.
+- `/api/health` reports `storageMode=supabase` and `persistent=true`; an unauthenticated task request correctly returns HTTP 401 and requires a Bearer token.
+- The health result confirms configuration is active, not that an authenticated request has reached the database.
 
 IN PROGRESS
-- Updating this report to the requested headings and requesting SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY through Replit Secrets.
-- After the secrets are configured, connect the website to the dedicated MyPLA backend and verify the live connection and persistence.
+- Waiting for a signed-in user session to exercise authenticated Supabase reads/writes and verify the task persistence flow.
+- Supabase configuration is active; the URL and key were added through Replit Secrets and were not printed or copied into project files.
 
 REMAINING
-- Install project dependencies, then rerun the frontend build and Python tests.
-- Configure the dedicated MyPLA Supabase project and apply its existing migration; verify connection and authenticated data access.
+- Confirm the existing schema migration has been applied to the dedicated MyPLA Supabase project; then verify authenticated data access.
 - Verify task/action creation, completion, refresh, and sign-out/sign-in persistence against Supabase.
 - Verify authentication-dependent API behavior and the complete signup-to-signout acceptance flow.
 - Reflection UI currently leaves helpfulStrategies and summary empty; confirm all four requested reflection answers are captured.
 - Review mock schedule/notification and Explore content so samples are not mistaken for saved user data.
 - Verify remaining schedule interactions, error/empty/loading states, and responsive UI.
-- The configured “Start application” workflow was reported failed in the environment snapshot and has not been restarted.
+- Browser logs show a hydration warning on document attributes, including attributes injected by a Grammarly extension; the page renders, but check whether it reproduces without extensions before treating it as an app defect.
+- The workflow was initially reported failed; it has since been restarted successfully and is currently running.
 
 IMPORTANT NOTES
 - Preserve the architecture: React → FastAPI → deterministic MyPLA logic → Supabase.
+- Current TanStack dependencies require Node.js 22; the Replit runtime is set to Node 22.
 - Do not add an LLM until the foundation acceptance flow is complete.
 - Use the dedicated MyPLA Supabase project, not MyCommNet. Do not put credentials in Git or frontend source; do not use a service-role key.
 - Supabase-backed requests require a signed-in user's Bearer token. The backend must derive identity from the verified token, not a submitted user_id.
@@ -37,16 +41,22 @@ IMPORTANT NOTES
 - This dotfile is a manually maintained status record, not an automatic activity recorder. Do not put secrets or private personal content in it.
 
 VERIFICATION
-- Frontend build: BLOCKED — `bun run build` could not find `vite`; dependencies are not installed.
-- Python tests: BLOCKED — `python3 -m pytest -q` could not import `pytest`; dependencies are not installed.
-- Supabase connection: NOT YET VERIFIED — required Supabase settings are not currently available in this workspace.
+- Frontend build: PASS — `bun run build` completed successfully.
+- Python tests: PASS — `python3 -m pytest -q` reported 23 passed; one Starlette/httpx deprecation warning.
+- Supabase connection: CONFIGURED — app health reports Supabase mode; authenticated database connectivity is not yet verified.
 - Authentication: NOT YET VERIFIED — requires a configured Supabase project and an end-to-end sign-in test.
-- Task persistence: NOT YET VERIFIED — source-level Supabase persistence exists, but no live database test has been run.
+- Task persistence: NOT YET VERIFIED — source-level Supabase persistence exists, but no authenticated live read/write has been tested.
 
 ACTIVITY LOG
 - Read the Foundation Completion + Polish instructions and project overview.
 - Inspected the relevant backend, frontend, storage, auth, service, and test code; assessed implementation versus live verification.
 - Created the hidden progress record, then reformatted it to the requested headings.
-- Attempted `bun run build` and `python3 -m pytest -q`; both were blocked by missing dependencies, not by a verified code failure.
-- No application code, workflow, database, or secret values have been changed in this session.
+- Added the declared frontend and Python dependencies through Replit's package manager; set the Replit Node runtime to Node 22 because current TanStack packages require Node >=22.12.
+- Ran `bun run build` successfully and `python3 -m pytest -q` successfully (23 passed).
+- Restarted the existing `Start application` workflow; confirmed both Vite and FastAPI started and the preview displays the Supabase sign-in screen.
+- Checked `/api/health` (Supabase mode, persistent) and confirmed unauthenticated `/api/tasks` returns 401 as designed.
+- Updated the npm lockfile to include the already-declared Supabase JS dependency. Restored Vite's original exact version constraint.
+- Corrected stale setup notes that still said the sign-in screen/session provider did not exist.
+- Preview browser logs showed a hydration warning with extension-injected body attributes; no changes were made for it.
+- Secret values were not displayed or copied. No database migration or user/task record was created.
 - Continue updating this file manually as implementation and verification proceed.

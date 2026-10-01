@@ -74,7 +74,7 @@ Apply `supabase/migrations/0001_mypla_foundation.sql` to the dedicated MyPLA Sup
 - `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEY`
 
-Both are required to switch the backend out of demo memory mode. Supabase-backed requests require a valid signed-in user's Bearer token; the backend verifies the token and passes it to PostgREST so the database policies remain authoritative. This repository does not yet include a sign-in screen/session provider, so the frontend currently runs against temporary memory storage until that authentication UI is added and connected.
+Both are required to switch the backend out of demo memory mode. Supabase-backed requests require a valid signed-in user's Bearer token; the backend verifies the token and passes it to PostgREST so the database policies remain authoritative. The React frontend includes Supabase sign-up, sign-in, sign-out, and session handling. Without the Supabase settings, the backend remains in temporary memory mode.
 
 Never commit `.env`; it is ignored by Git. Do not use the separate MyCommNet Supabase project or put a service-role key in frontend code.
 
