@@ -1,0 +1,139 @@
+We have verified that Supabase authentication, Supabase-backed task creation, page-reload persistence, and task completion are working.
+
+Do NOT add an LLM yet.
+
+Do NOT rebuild the application.
+
+Complete the remaining foundation issues identified in `.mypla-foundation-progress.txt`.
+
+## 1. Finish authentication verification support
+
+Keep the existing Supabase Auth implementation.
+
+Make sure:
+
+* sign out clears the authenticated application state
+* signing back in restores the session
+* protected API requests continue sending the current Bearer token
+* user data is loaded again after re-login
+
+Do not create another authentication system.
+
+## 2. Finish task-action interaction
+
+The backend already supports completing individual actions.
+
+Connect the UI so the user can actually complete the current next action.
+
+Desired behavior:
+
+Task
+→ Next action shown
+→ User completes action
+→ Next unfinished action becomes visible
+→ Previous action remains stored as completed
+→ When all actions are complete, the task can be completed
+
+Do not expose the entire completed action history in the primary task card.
+
+## 3. Fix weekly reflection persistence
+
+The reflection UI must capture all requested reflection information.
+
+Do not save empty placeholder values for fields that have user answers.
+
+Ensure the following can be captured and restored:
+
+* what went well
+* challenges/difficulties
+* helpful strategies
+* things worth remembering
+
+Keep the backend reflection model compatible with the existing schema.
+
+## 4. Separate real data from sample/demo data
+
+Review the remaining uses of mock data.
+
+Do not silently present mock notifications, schedule information, or Explore opportunities as though they are real user-generated data.
+
+For features that are not yet backed by the user's data, either:
+
+* connect them to the existing backend, or
+* clearly identify them as examples/demo content.
+
+Do not delete useful UI components just because their backend is unfinished.
+
+## 5. Improve empty/loading/error states
+
+Review the major screens:
+
+* Home
+* Current
+* Upcoming
+* Schedule
+* Explore
+* Weekly Reflection
+
+Make sure each has sensible:
+
+* loading state
+* empty state
+* error state
+
+Do not let an API failure silently look like successful real data.
+
+## 6. Keep the current product architecture
+
+Preserve:
+
+React
+→ FastAPI
+→ deterministic MyPLA logic
+→ Supabase
+
+Do not introduce an LLM.
+
+Do not introduce vector databases, embeddings, agent loops, or automatic AI actions.
+
+Keep `AIService` as the provider-neutral future boundary.
+
+## 7. Testing
+
+Run:
+
+```text
+bun run build
+python3 -m pytest -q
+```
+
+Add tests where appropriate for task-action completion and reflection persistence.
+
+Update `.mypla-foundation-progress.txt` with:
+
+* what was changed
+* what was verified
+* anything still unverified
+* build result
+* Python test result
+
+Clearly distinguish IMPLEMENTED from VERIFIED.
+
+## Definition of done
+
+The foundation is ready for the LLM when:
+
+* authentication works across sign-out/sign-in
+* tasks persist
+* actions persist and can be completed individually
+* next-action behavior works
+* task completion persists
+* proposals require user approval
+* assumptions persist correctly
+* stuck reports persist
+* reflections persist all four answers
+* major screens no longer confuse mock data with real user data
+* build passes
+* Python tests pass
+
+Do not begin LLM integration during this task.

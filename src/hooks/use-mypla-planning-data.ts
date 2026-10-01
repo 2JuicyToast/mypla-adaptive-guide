@@ -16,8 +16,10 @@ export function useMyPlaPlanningData() {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [assumptions, setAssumptions] = useState<AssumptionCheck[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
+    setLoading(true);
     try {
       const [latestProposals, latestAssumptions] = await Promise.all([
         getProposals(),
@@ -31,6 +33,8 @@ export function useMyPlaPlanningData() {
         cause instanceof Error ? cause.message : "Planning suggestions could not be loaded.";
       setError(message);
       throw cause;
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -38,5 +42,5 @@ export function useMyPlaPlanningData() {
     void refresh().catch(() => undefined);
   }, [refresh]);
 
-  return { proposals, assumptions, error, refresh };
+  return { proposals, assumptions, error, loading, refresh };
 }

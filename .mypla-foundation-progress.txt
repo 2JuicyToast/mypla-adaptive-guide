@@ -1,63 +1,32 @@
 CURRENT STATUS
-The project contains substantial MyPLA foundations: a React frontend, FastAPI routes, deterministic planning services, Supabase adapters, and Supabase Auth UI. The Supabase URL and publishable key are configured in Replit Secrets, and the app is running in Supabase mode. Authenticated task creation, a later task read after page reload, and task completion succeeded. Sign-out/re-login and completed-state persistence after another refresh remain untested.
+The requested foundation fixes are implemented without replacing the existing React → FastAPI → deterministic planning → Supabase architecture. The current preview is running in temporary memory/demo mode, so Supabase sign-out/re-login and live Supabase writes were not verified during this pass. No secrets were read or copied.
 
-This report is a hidden dotfile at the project root. It is not shown in the app, but anyone with access to the workspace or repository can read it; it is not private storage. The personal narrative attachment was ignored and is not copied into this report.
+This hidden dotfile is a manually maintained project status report, not private storage. Do not put secrets or personal content in it.
 
-COMPLETED
-Implemented in the repository:
-- React/TanStack frontend and FastAPI backend, with deterministic services and no live LLM.
-- Supabase schema/RLS migration, configuration endpoint, user-scoped repository, and auth UI supporting sign-up, sign-in, sign-out, session loading, and Bearer-token requests.
-- Task and action APIs, deterministic priority scoring, proposal approval/adjust/reject, assumption responses, schedule suggestions, stuck reports, resources, and weekly reflection persistence paths.
-- Python service/API tests covering memory-mode behaviors such as task completion, priority, proposal decisions, assumptions, and schedule suggestions.
+IMPLEMENTED
+- Kept the existing Supabase Auth flow. Sign-out clears the provider's user state; sign-in restores it from the returned Supabase user/session. Protected API calls obtain the current session token per request. Returning from the sign-in screen remounts the app routes and reloads their data.
+- Connected task cards to the individual action-completion endpoint. Each card shows only the next unfinished action; the backend refuses task completion while any action remains unfinished.
+- Added all four weekly reflection fields: what went well, challenges, helpful strategies, and things to remember. The existing reflection model and database columns already support them, so no migration was needed. Load failures disable saving until a retry succeeds.
+- Labeled Explore opportunities and notifications as examples, disabled their unsaved preview actions, identified generated weekday schedules as templates, and removed the schedule screen's misleading mock-data fallback on API errors.
+- Added loading and empty states for task lists, schedules, proposals, and reflections; API failures remain visible rather than looking like successful empty data.
+- Added API/service tests for action completion order and reflection round-tripping. No LLM, vector database, embeddings, or automatic assistant actions were introduced.
 
-Verified in this session:
-- Frontend production build completed successfully.
-- Python suite passed: 23 tests.
-- Existing Replit workflow started; the app displays the Supabase sign-in screen.
-- `/api/health` reports `storageMode=supabase` and `persistent=true`; an unauthenticated task request correctly returns HTTP 401 and requires a Bearer token.
-- Authenticated task creation returned 201, later task reads returned 200 after page reload, and completing the task returned 200. This confirms a working Supabase-backed task read/write path.
+VERIFIED
+- Frontend production build: PASS — `bun run build`.
+- Python tests: PASS — `python3 -m pytest -q`, 24 passed. One existing Starlette/httpx deprecation warning remains.
+- Edited frontend files: ESLint passed with zero errors; one Fast Refresh warning remains for the existing exported task helper.
+- `git diff --check`: PASS.
+- `Start application` workflow: RUNNING. The home page rendered in the preview with no browser console errors. The visible banner and API responses identify the current runtime as temporary memory mode.
+- The earlier project record documents a successful authenticated Supabase task create → page-reload read → completion flow. That earlier result was not repeated during this pass.
 
-IN PROGRESS
-- Verify the signed-in session after sign-out/re-login. The user could not confirm the completed task visually; current and upcoming views only display tasks with those active statuses.
-- Supabase settings are active in Replit Secrets; the values were not printed or copied into project files.
-
-REMAINING
-- Verify task-action persistence and the complete signup/signout/re-login acceptance flow.
-- Completed tasks are filtered out of current and upcoming views; there is no completed-task history view to confirm their state visually after re-login.
-- Reflection UI currently leaves helpfulStrategies and summary empty; confirm all four requested reflection answers are captured.
-- Review mock schedule/notification and Explore content so samples are not mistaken for saved user data.
-- Verify remaining schedule interactions, error/empty/loading states, and responsive UI.
-- Browser logs show a hydration warning on document attributes, including attributes injected by a Grammarly extension; the page renders, but check whether it reproduces without extensions before treating it as an app defect.
-- The workflow was initially reported failed; it has since been restarted successfully and is currently running.
+UNVERIFIED
+- Live Supabase sign-out/re-login, access-token refresh, user-data reload, task-action persistence, and four-answer reflection persistence. The current app preview reports memory mode, so these Supabase paths could not be exercised here.
+- Responsive layouts beyond the captured 1280×720 home preview.
+- Full-project ESLint. `bun run lint` timed out while scanning dependency/cache files, and `bunx eslint src` also reported existing Prettier violations in untouched source files. Scoped ESLint on the edited frontend files passed with one Fast Refresh warning.
 
 IMPORTANT NOTES
 - Preserve the architecture: React → FastAPI → deterministic MyPLA logic → Supabase.
-- Current TanStack dependencies require Node.js 22; the Replit runtime is set to Node 22.
 - Do not add an LLM until the foundation acceptance flow is complete.
-- Use the dedicated MyPLA Supabase project, not MyCommNet. Do not put credentials in Git or frontend source; do not use a service-role key.
-- Supabase-backed requests require a signed-in user's Bearer token. The backend must derive identity from the verified token, not a submitted user_id.
-- Without Supabase configuration, the backend uses temporary in-memory demo storage; changes disappear when it restarts.
-- This dotfile is a manually maintained status record, not an automatic activity recorder. Do not put secrets or private personal content in it.
-
-VERIFICATION
-- Frontend build: PASS — `bun run build` completed successfully.
-- Python tests: PASS — `python3 -m pytest -q` reported 23 passed; one Starlette/httpx deprecation warning.
-- Supabase connection: PASS — authenticated Supabase-backed task reads/writes returned success.
-- Authentication: PARTIALLY VERIFIED — a signed-in Bearer token was accepted by protected endpoints; sign-out/re-login was not confirmed.
-- Task persistence: PASS for create → page-reload read → completion in Supabase. Post-sign-out/re-login retrieval of the completed task remains unverified because the app hides done tasks from the visible current/upcoming lists.
-
-ACTIVITY LOG
-- Read the Foundation Completion + Polish instructions and project overview.
-- Inspected the relevant backend, frontend, storage, auth, service, and test code; assessed implementation versus live verification.
-- Created the hidden progress record, then reformatted it to the requested headings.
-- Added the declared frontend and Python dependencies through Replit's package manager; set the Replit Node runtime to Node 22 because current TanStack packages require Node >=22.12.
-- Ran `bun run build` successfully and `python3 -m pytest -q` successfully (23 passed).
-- Restarted the existing `Start application` workflow; confirmed both Vite and FastAPI started and the preview displays the Supabase sign-in screen.
-- Checked `/api/health` (Supabase mode, persistent) and confirmed unauthenticated `/api/tasks` returns 401 as designed.
-- Confirmed from workflow logs that the signed-in user created a task (201), fetched tasks after page reload (200), and completed that task (200).
-- The user could not confirm the completed task was visible after sign-in; current and upcoming views filter out completed tasks, so absence from those screens does not establish data loss.
-- Updated the npm lockfile to include the already-declared Supabase JS dependency. Restored Vite's original exact version constraint.
-- Corrected stale setup notes that still said the sign-in screen/session provider did not exist.
-- Preview browser logs showed a hydration warning with extension-injected body attributes; no changes were made for it.
-- Secret values were not displayed or copied. A temporary test task was created and completed by the signed-in user; it was not deleted.
-- Continue updating this file manually as implementation and verification proceed.
+- Use the dedicated MyPLA Supabase project, not MyCommNet. Never put credentials in Git or frontend source, and do not use a service-role key.
+- Supabase-backed requests require a signed-in user's Bearer token; the backend derives identity from the verified token, not a submitted `user_id`.
+- Without Supabase configuration, the backend uses temporary in-memory demo storage; data resets when the API restarts.

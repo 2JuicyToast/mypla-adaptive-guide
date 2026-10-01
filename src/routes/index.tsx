@@ -50,7 +50,7 @@ function HomeDashboard() {
   const [assumptionOpen, setAssumptionOpen] = useState(false);
   const [draft, setDraft] = useState<TaskDraft | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
-  const { tasks, mode, notice, setNotice, addTask, finishTask } = useMyPlaTasks();
+  const { tasks, mode, notice, setNotice, addTask, finishTask, finishAction } = useMyPlaTasks();
   const planningData = useMyPlaPlanningData();
   const current = tasks.filter((task) => task.status === "current");
 
@@ -99,8 +99,8 @@ function HomeDashboard() {
 
   return (
     <MyPlaShell
-      title="Good afternoon, Josh"
-      subtitle="Three tasks in play today. Here's what I'd start with — your call."
+      title="Your MyPLA plan"
+      subtitle="A clear view of your current focus, with you in control of every decision."
     >
       <BackendStatusNotice mode={mode} notice={notice ?? planningData.error} />
       <div className="grid gap-6 lg:grid-cols-3">
@@ -117,24 +117,43 @@ function HomeDashboard() {
                 Answer a quick check
               </Button>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {current.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  onStuck={setStuckTask}
-                  onComplete={(completed) => {
-                    void finishTask(completed.id).then(
-                      () => setNotice(`Completed "${completed.name}".`),
-                      (error: unknown) =>
-                        setNotice(
-                          error instanceof Error ? error.message : "Task completion failed.",
-                        ),
-                    );
-                  }}
-                />
-              ))}
-            </div>
+            {mode === "connecting" ? (
+              <p
+                role="status"
+                className="rounded-lg border border-border p-4 text-sm text-muted-foreground"
+              >
+                Loading your current tasks…
+              </p>
+            ) : current.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                No current tasks yet. Add a task below when you’re ready.
+              </p>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {current.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    readOnly={mode === "sample"}
+                    onStuck={setStuckTask}
+                    onCompleteAction={(item, actionId) =>
+                      finishAction(item.id, actionId).then(() =>
+                        setNotice(`Completed the next action for "${item.name}".`),
+                      )
+                    }
+                    onComplete={(completed) => {
+                      void finishTask(completed.id).then(
+                        () => setNotice(`Completed "${completed.name}".`),
+                        (error: unknown) =>
+                          setNotice(
+                            error instanceof Error ? error.message : "Task completion failed.",
+                          ),
+                      );
+                    }}
+                  />
+                ))}
+              </div>
+            )}
           </section>
 
           <GuidedTaskEntry
@@ -174,14 +193,25 @@ function HomeDashboard() {
         <div className="space-y-6">
           <AiSuggestionPanel
             proposals={planningData.proposals}
+            loading={planningData.loading}
             onApprove={(proposal) => void decideProposal(proposal.id, "approve")}
             onDecline={(proposal) => void decideProposal(proposal.id, "reject")}
             onAdjust={(proposal, changes) => void decideProposal(proposal.id, "adjust", changes)}
           />
           <section className="space-y-3">
-            <h2 className="text-lg font-semibold">Notifications</h2>
+            <div>
+              <h2 className="text-lg font-semibold">Example notifications</h2>
+              <p className="text-xs text-muted-foreground">
+                Preview content only. These check-ins are not generated from your activity, and
+                replies are not saved.
+              </p>
+            </div>
             {mockNotifications.map((notification) => (
-              <ScheduleNotificationCard key={notification.id} notification={notification} />
+              <ScheduleNotificationCard
+                key={notification.id}
+                notification={notification}
+                isExample
+              />
             ))}
           </section>
           <ResourceLibrary />

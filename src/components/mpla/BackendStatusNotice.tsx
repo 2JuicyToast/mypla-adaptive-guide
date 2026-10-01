@@ -7,25 +7,44 @@ export function BackendStatusNotice({
   mode: TaskDataMode;
   notice?: string | null;
 }) {
+  if (notice) {
+    const connected = mode === "memory" || mode === "supabase";
+    return (
+      <p
+        role={mode === "sample" ? "alert" : "status"}
+        className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
+          connected
+            ? "border-primary/20 bg-primary/5 text-foreground"
+            : "border-destructive/30 bg-destructive/5 text-foreground"
+        }`}
+      >
+        {notice}
+      </p>
+    );
+  }
+
   if (mode === "connecting") {
     return (
-      <p className="mb-4 rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
+      <p
+        role="status"
+        className="mb-4 rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground"
+      >
         Connecting to the MyPLA API…
       </p>
     );
   }
 
   const connected = mode === "memory" || mode === "supabase";
-  const text = notice
-    ?? (mode === "supabase"
+  const text =
+    mode === "supabase"
       ? "Connected to your user-scoped Supabase database."
       : mode === "memory"
-        ? "Using temporary Replit memory storage. Changes reset when the API restarts."
-        : "Showing the original sample tasks.");
+        ? "Using temporary demo data in memory. Sample tasks are not persistent; changes reset when the API restarts."
+        : "The API is unavailable. Showing read-only sample tasks; these are not your saved tasks.";
 
   return (
     <p
-      role={notice ? "alert" : "status"}
+      role="status"
       className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
         connected
           ? "border-primary/20 bg-primary/5 text-foreground"

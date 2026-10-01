@@ -1,4 +1,5 @@
 import { ArrowRight, CheckCircle2, LifeBuoy, Play, Sparkle } from "lucide-react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { PriorityBadge, TaskMetaRow, formatMinutes } from "@/components/mpla/TaskMeta";
@@ -17,16 +18,35 @@ export function TaskCard({
   task,
   onStart,
   onComplete,
+  onCompleteAction,
   onStuck,
+  readOnly = false,
   compact = false,
 }: {
   task: Task;
   onStart?: (task: Task) => void;
   onComplete?: (task: Task) => void;
+  onCompleteAction?: (task: Task, actionId: string) => Promise<void>;
   onStuck?: (task: Task) => void;
+  readOnly?: boolean;
   compact?: boolean;
 }) {
   const next = nextUnfinishedAction(task);
+  const [completingAction, setCompletingAction] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  async function completeNextAction() {
+    if (!next || !onCompleteAction) return;
+    setCompletingAction(true);
+    setActionError(null);
+    try {
+      await onCompleteAction(task, next.id);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "The action could not be completed.");
+    } finally {
+      setCompletingAction(false);
+    }
+  }
 
   return (
     <article className="surface-panel flex flex-col gap-4 p-5 transition-shadow hover:shadow-[var(--shadow-lift)]">
@@ -59,6 +79,11 @@ export function TaskCard({
             about {formatMinutes(next.estimatedMinutes)}
           </p>
         ) : null}
+        {actionError ? (
+          <p role="alert" className="mt-2 text-xs text-destructive">
+            {actionError}
+          </p>
+        ) : null}
       </div>
 
       {task.assistantNote && !compact ? (
@@ -69,15 +94,32 @@ export function TaskCard({
       ) : null}
 
       <div className={cn("flex flex-wrap gap-2", compact && "pt-1")}>
-        <Button size="sm" onClick={() => onStart?.(task)}>
+        <Button size="sm" disabled={readOnly} onClick={() => onStart?.(task)}>
           <Play className="size-4" />
           Start
         </Button>
-        <Button size="sm" variant="outline" onClick={() => onComplete?.(task)}>
-          <CheckCircle2 className="size-4" />
-          Complete
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => onStuck?.(task)}>
+        {next ? (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={readOnly || completingAction || !onCompleteAction}
+            onClick={() => void completeNextAction()}
+          >
+            <CheckCircle2 className="size-4" />
+            {completingAction ? "Saving…" : "Complete next action"}
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={readOnly}
+            onClick={() => onComplete?.(task)}
+          >
+            <CheckCircle2 className="size-4" />
+            Complete task
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" disabled={readOnly} onClick={() => onStuck?.(task)}>
           <LifeBuoy className="size-4" />
           I'm stuck
         </Button>

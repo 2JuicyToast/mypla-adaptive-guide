@@ -17,10 +17,12 @@ export function ExploreCard({
   opportunity,
   onAddToPlan,
   onStartNow,
+  isExample = false,
 }: {
   opportunity: ExploreOpportunity;
   onAddToPlan?: (opportunity: ExploreOpportunity) => void;
   onStartNow?: (opportunity: ExploreOpportunity) => void;
+  isExample?: boolean;
 }) {
   return (
     <article className="surface-panel flex flex-col gap-3 p-5">
@@ -39,10 +41,20 @@ export function ExploreCard({
       </div>
       <EnergyBadge energy={opportunity.energyRequired} />
       <div className="flex gap-2">
-        <Button size="sm" variant="outline" onClick={() => onAddToPlan?.(opportunity)}>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={isExample}
+          onClick={() => onAddToPlan?.(opportunity)}
+        >
           Add to plan
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => onStartNow?.(opportunity)}>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={isExample}
+          onClick={() => onStartNow?.(opportunity)}
+        >
           Do it now
         </Button>
       </div>

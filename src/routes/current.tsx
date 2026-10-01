@@ -30,7 +30,7 @@ export const Route = createFileRoute("/current")({
 function CurrentTasks() {
   const [stuckTask, setStuckTask] = useState<Task | null>(null);
   const [checkTask, setCheckTask] = useState<Task | null>(null);
-  const { tasks, mode, notice, setNotice, finishTask } = useMyPlaTasks();
+  const { tasks, mode, notice, setNotice, finishTask, finishAction } = useMyPlaTasks();
   const planningData = useMyPlaPlanningData();
   const current = tasks.filter((task) => task.status === "current");
 
@@ -39,24 +39,43 @@ function CurrentTasks() {
       title="Current tasks"
       subtitle="One next action each — the rest stays out of your way."
     >
-      <BackendStatusNotice mode={mode} notice={notice} />
-      <div className="grid gap-4 md:grid-cols-2">
-        {current.map((task) => (
-          <TaskCard
-            key={task.id}
-            task={task}
-            onStuck={setStuckTask}
-            {...(planningData.assumptions.length > 0 ? { onStart: setCheckTask } : {})}
-            onComplete={(completed) => {
-              void finishTask(completed.id).then(
-                () => setNotice(`Completed "${completed.name}".`),
-                (error: unknown) =>
-                  setNotice(error instanceof Error ? error.message : "Task completion failed."),
-              );
-            }}
-          />
-        ))}
-      </div>
+      <BackendStatusNotice mode={mode} notice={notice ?? planningData.error} />
+      {mode === "connecting" ? (
+        <p
+          role="status"
+          className="rounded-lg border border-border p-4 text-sm text-muted-foreground"
+        >
+          Loading your current tasks…
+        </p>
+      ) : current.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+          No current tasks yet.
+        </p>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {current.map((task) => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              readOnly={mode === "sample"}
+              onStuck={setStuckTask}
+              {...(planningData.assumptions.length > 0 ? { onStart: setCheckTask } : {})}
+              onCompleteAction={(item, actionId) =>
+                finishAction(item.id, actionId).then(() =>
+                  setNotice(`Completed the next action for "${item.name}".`),
+                )
+              }
+              onComplete={(completed) => {
+                void finishTask(completed.id).then(
+                  () => setNotice(`Completed "${completed.name}".`),
+                  (error: unknown) =>
+                    setNotice(error instanceof Error ? error.message : "Task completion failed."),
+                );
+              }}
+            />
+          ))}
+        </div>
+      )}
 
       <StuckDialog
         task={stuckTask}

@@ -60,8 +60,9 @@ export function MyPlaAuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(
     async (email: string, password: string) => {
       if (!client) throw new Error("Authentication is not available.");
-      const { error } = await client.auth.signInWithPassword({ email, password });
+      const { data, error } = await client.auth.signInWithPassword({ email, password });
       if (error) throw new Error("Sign in failed. Check your email and password, then try again.");
+      setUser(data.user);
     },
     [client],
   );
@@ -73,6 +74,7 @@ export function MyPlaAuthProvider({ children }: { children: ReactNode }) {
       if (error) {
         throw new Error("Your account could not be created. Check your details and try again.");
       }
+      if (data.session?.user) setUser(data.session.user);
       return data.session !== null;
     },
     [client],
@@ -82,6 +84,7 @@ export function MyPlaAuthProvider({ children }: { children: ReactNode }) {
     if (!client) return;
     const { error } = await client.auth.signOut();
     if (error) throw new Error("Sign out failed. Please try again.");
+    setUser(null);
   }, [client]);
 
   const retryConfiguration = useCallback(() => {

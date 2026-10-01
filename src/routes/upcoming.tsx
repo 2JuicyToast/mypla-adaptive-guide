@@ -26,7 +26,15 @@ export const Route = createFileRoute("/upcoming")({
 
 function UpcomingTasks() {
   const [stuckTask, setStuckTask] = useState<Task | null>(null);
-  const { tasks, mode, notice, setNotice, finishTask, refresh: refreshTasks } = useMyPlaTasks();
+  const {
+    tasks,
+    mode,
+    notice,
+    setNotice,
+    finishTask,
+    finishAction,
+    refresh: refreshTasks,
+  } = useMyPlaTasks();
   const planningData = useMyPlaPlanningData();
   const upcoming = tasks.filter((task) => task.status === "upcoming");
 
@@ -48,29 +56,62 @@ function UpcomingTasks() {
   }
 
   return (
-    <MyPlaShell title="Upcoming" subtitle="Nothing urgent yet — here's what's forming.">
+    <MyPlaShell
+      title="Upcoming"
+      subtitle="Work planned for later, plus suggestions you can review."
+    >
       <BackendStatusNotice mode={mode} notice={notice ?? planningData.error} />
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2">
-          {upcoming.map((task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              onStuck={setStuckTask}
-              compact
-              onComplete={(completed) => {
-                void finishTask(completed.id).then(
-                  () => setNotice(`Completed "${completed.name}".`),
-                  (error: unknown) =>
-                    setNotice(error instanceof Error ? error.message : "Task completion failed."),
-                );
-              }}
-            />
-          ))}
+        <div className="lg:col-span-2">
+          {mode === "connecting" ? (
+            <p
+              role="status"
+              className="rounded-lg border border-border p-4 text-sm text-muted-foreground"
+            >
+              Loading your upcoming tasks…
+            </p>
+          ) : upcoming.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+              No upcoming tasks yet.
+            </p>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {upcoming.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  readOnly={mode === "sample"}
+                  onStuck={setStuckTask}
+                  compact
+                  onCompleteAction={(item, actionId) =>
+                    finishAction(item.id, actionId).then(() =>
+                      setNotice(`Completed the next action for "${item.name}".`),
+                    )
+                  }
+                  onComplete={(completed) => {
+                    void finishTask(completed.id).then(
+                      () => setNotice(`Completed "${completed.name}".`),
+                      (error: unknown) =>
+                        setNotice(
+                          error instanceof Error ? error.message : "Task completion failed.",
+                        ),
+                    );
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Planning proposals</h2>
-          {planningData.proposals.length ? (
+          {planningData.loading ? (
+            <p
+              role="status"
+              className="rounded-lg border border-border p-4 text-sm text-muted-foreground"
+            >
+              Loading proposals…
+            </p>
+          ) : planningData.proposals.length ? (
             planningData.proposals.map((proposal) => (
               <ProposalCard
                 key={proposal.id}

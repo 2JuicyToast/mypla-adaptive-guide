@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { MyPlaShell } from "@/components/mpla/MyPlaShell";
 import { ScheduleNotificationCard } from "@/components/mpla/ScheduleNotificationCard";
 import { ScheduleTimeline } from "@/components/mpla/ScheduleTimeline";
-import { mockNotifications, mockSchedule } from "@/lib/mpla-mock-data";
+import { Button } from "@/components/ui/button";
+import { mockNotifications } from "@/lib/mpla-mock-data";
 import { getSchedule, suggestSchedule } from "@/lib/mypla-api";
 import type { ScheduleBlock } from "@/lib/mpla-types";
 
@@ -21,54 +22,28 @@ export const Route = createFileRoute("/schedule")({
 });
 
 function SchedulePage() {
-  const [blocks, setBlocks] = useState<ScheduleBlock[]>(mockSchedule);
+  const [blocks, setBlocks] = useState<ScheduleBlock[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  const [loadingSchedule, setLoadingSchedule] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const loadSchedule = useCallback(async () => {
+    setLoadingSchedule(true);
+    setLoadError(null);
+    try {
+      const saved = await getSchedule();
+      setBlocks(saved.map(toScheduleBlock));
+      setNotice(null);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "The schedule could not be loaded.");
+    } finally {
+      setLoadingSchedule(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let active = true;
-    void getSchedule().then(
-      (saved) => {
-        if (!active) return;
-        setBlocks(
-          saved.map((block) => ({
-            id: block.id,
-            label: block.title,
-            start: new Date(block.start).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            }),
-            end: new Date(block.end).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            }),
-            kind:
-              block.kind === "fixed"
-                ? "class"
-                : block.kind === "flexible"
-                  ? "free"
-                  : block.kind === "break"
-                    ? "break"
-                    : block.kind === "transition"
-                      ? "commute"
-                      : "personal",
-            ...(block.taskId ? { taskId: block.taskId } : {}),
-            startAt: block.start,
-            endAt: block.end,
-          })),
-        );
-      },
-      (error: unknown) => {
-        if (active) {
-          setNotice(error instanceof Error ? error.message : "The schedule could not be loaded.");
-        }
-      },
-    );
-    return () => {
-      active = false;
-    };
-  }, []);
+    void loadSchedule();
+  }, [loadSchedule]);
 
   async function requestSuggestion(block: ScheduleBlock) {
     const start = new Date(block.startAt ?? "");
@@ -89,7 +64,7 @@ function SchedulePage() {
   }
 
   return (
-    <MyPlaShell title="Schedule" subtitle="Your typical weekday, and where the gaps are.">
+    <MyPlaShell title="Schedule" subtitle="Your saved blocks and available time.">
       {notice ? (
         <p
           role="status"
@@ -105,15 +80,87 @@ function SchedulePage() {
       ) : null}
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <ScheduleTimeline blocks={blocks} onFillGap={(block) => void requestSuggestion(block)} />
+          {loadingSchedule ? (
+            <p
+              role="status"
+              className="rounded-lg border border-border p-4 text-sm text-muted-foreground"
+            >
+              Loading your schedule…
+            </p>
+          ) : loadError ? (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+              <p role="alert" className="text-sm">
+                Your schedule could not be loaded: {loadError}
+              </p>
+              <Button
+                className="mt-3"
+                size="sm"
+                variant="outline"
+                onClick={() => void loadSchedule()}
+              >
+                Retry
+              </Button>
+            </div>
+          ) : blocks.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+              No schedule blocks are saved for today.
+            </p>
+          ) : (
+            <>
+              <p className="mb-3 text-sm text-muted-foreground">
+                {blocks.some((block) => block.id.startsWith("weekday-"))
+                  ? "Typical weekday template — example timing, not saved personal events."
+                  : "These schedule blocks are saved to your account."}
+              </p>
+              <ScheduleTimeline
+                blocks={blocks}
+                onFillGap={(block) => void requestSuggestion(block)}
+              />
+            </>
+          )}
         </div>
         <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Check-ins</h2>
+          <div>
+            <h2 className="text-lg font-semibold">Example check-ins</h2>
+            <p className="text-xs text-muted-foreground">
+              Preview content only. Replies are not saved.
+            </p>
+          </div>
           {mockNotifications.map((notification) => (
-            <ScheduleNotificationCard key={notification.id} notification={notification} />
+            <ScheduleNotificationCard key={notification.id} notification={notification} isExample />
           ))}
         </div>
       </div>
     </MyPlaShell>
   );
+}
+
+function toScheduleBlock(block: Awaited<ReturnType<typeof getSchedule>>[number]): ScheduleBlock {
+  return {
+    id: block.id,
+    label: block.title,
+    start: new Date(block.start).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }),
+    end: new Date(block.end).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }),
+    kind:
+      block.kind === "fixed"
+        ? "class"
+        : block.kind === "flexible"
+          ? "free"
+          : block.kind === "break"
+            ? "break"
+            : block.kind === "transition"
+              ? "commute"
+              : "personal",
+    ...(block.taskId ? { taskId: block.taskId } : {}),
+    startAt: block.start,
+    endAt: block.end,
+  };
 }

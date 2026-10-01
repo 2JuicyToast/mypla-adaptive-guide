@@ -55,7 +55,7 @@ def test_partial_supabase_configuration_fails_clearly(client, monkeypatch):
     assert "Set both SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY" in response.json()["detail"]
 
 
-def test_task_api_create_complete_and_next_action(client):
+def test_task_api_completes_actions_in_order_before_completing_task(client):
     created = client.post(
         "/api/tasks",
         json={
@@ -63,13 +63,30 @@ def test_task_api_create_complete_and_next_action(client):
             "estimatedMinutes": 25,
             "priority": "medium",
             "energyRequired": "low",
-            "actions": [{"label": "Open the notebook"}],
+            "actions": [{"label": "Open the notebook"}, {"label": "Write a first line"}],
         },
     )
     assert created.status_code == 201, created.text
     task = created.json()
     assert task["actions"][0]["label"] == "Open the notebook"
     assert client.get(f"/api/tasks/{task['id']}/next-action").json()["label"] == "Open the notebook"
+
+    blocked = client.post(f"/api/tasks/{task['id']}/complete")
+    assert blocked.status_code == 409
+    blocked_patch = client.patch(f"/api/tasks/{task['id']}", json={"status": "done"})
+    assert blocked_patch.status_code == 409
+
+    first = client.post(f"/api/tasks/{task['id']}/actions/{task['actions'][0]['id']}/complete")
+    assert first.status_code == 200
+    assert first.json()["actions"][0]["done"] is True
+    assert first.json()["actions"][1]["done"] is False
+    assert client.get(f"/api/tasks/{task['id']}/next-action").json()["label"] == "Write a first line"
+
+    second = client.post(f"/api/tasks/{task['id']}/actions/{task['actions'][1]['id']}/complete")
+    assert second.status_code == 200
+    assert second.json()["actions"][1]["done"] is True
+    assert client.get(f"/api/tasks/{task['id']}/next-action").json() is None
+
     completed = client.post(f"/api/tasks/{task['id']}/complete")
     assert completed.status_code == 200
     assert completed.json()["status"] == "done"
@@ -212,7 +229,13 @@ def test_resource_and_weekly_reflection_are_saved_and_week_is_updated(client):
     )
     second = client.post(
         "/api/reflections",
-        json={"week": "2026-09-28", "challenges": "Started with an outline"},
+        json={
+            "week": "2026-09-28",
+            "challenges": "Started with an outline",
+            "whatWentWell": "Finished the reading",
+            "helpfulStrategies": "Used a 20-minute timer",
+            "thingsToRemember": "Start with the smallest step",
+        },
     )
     assert first.status_code == 201
     assert second.status_code == 201
@@ -220,3 +243,6 @@ def test_resource_and_weekly_reflection_are_saved_and_week_is_updated(client):
     assert len(reflections) == 1
     assert reflections[0]["id"] == first.json()["id"]
     assert reflections[0]["challenges"] == "Started with an outline"
+    assert reflections[0]["whatWentWell"] == "Finished the reading"
+    assert reflections[0]["helpfulStrategies"] == "Used a 20-minute timer"
+    assert reflections[0]["thingsToRemember"] == "Start with the smallest step"

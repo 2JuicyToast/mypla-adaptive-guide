@@ -44,6 +44,11 @@ class TaskManager:
 
     def complete_task(self, task_id: str) -> Task:
         task = self.find_task(task_id)
+        if any(not action.done for action in task.actions):
+            raise HTTPException(
+                status_code=409,
+                detail="Complete all task actions before completing this task.",
+            )
         task.status = TaskStatus.DONE
         task.completed_at = utc_now()
         return self.repository.save_task(task)
@@ -78,6 +83,14 @@ class TaskManager:
 
     def update_task(self, task_id: str, patch: TaskPatch) -> Task:
         task = self.find_task(task_id)
+        replaces_actions = patch.actions is not None and bool(patch.actions)
+        if patch.status == TaskStatus.DONE and (
+            replaces_actions or any(not action.done for action in task.actions)
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Complete all task actions before completing this task.",
+            )
         updates = patch.model_dump(exclude_unset=True)
         for key, value in updates.items():
             if key == "actions" and value is not None:

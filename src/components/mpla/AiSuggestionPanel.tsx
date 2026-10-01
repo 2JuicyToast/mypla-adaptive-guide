@@ -9,11 +9,13 @@ import type { Proposal } from "@/lib/mpla-types";
  */
 export function AiSuggestionPanel({
   proposals,
+  loading = false,
   onApprove,
   onDecline,
   onAdjust,
 }: {
   proposals: Proposal[];
+  loading?: boolean;
   onApprove?: (proposal: Proposal) => void;
   onDecline?: (proposal: Proposal) => void;
   onAdjust?: (proposal: Proposal, changes: Record<string, unknown>) => void;
@@ -26,7 +28,7 @@ export function AiSuggestionPanel({
           <h2 className="text-lg font-semibold">Suggestions for you</h2>
         </div>
         <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground">
-          {proposals.length} waiting
+          {loading ? "Loading…" : `${proposals.length} waiting`}
         </span>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
@@ -34,7 +36,14 @@ export function AiSuggestionPanel({
       </p>
 
       <div className="mt-4 space-y-3">
-        {proposals.length === 0 ? (
+        {loading ? (
+          <p
+            role="status"
+            className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground"
+          >
+            Loading your suggestions…
+          </p>
+        ) : proposals.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
             No suggestions right now.
           </p>

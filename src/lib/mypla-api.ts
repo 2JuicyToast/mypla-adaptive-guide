@@ -123,6 +123,13 @@ export function completeTask(taskId: string) {
   });
 }
 
+export function completeTaskAction(taskId: string, actionId: string) {
+  return request<Task>(
+    `/api/tasks/${encodeURIComponent(taskId)}/actions/${encodeURIComponent(actionId)}/complete`,
+    { method: "POST" },
+  );
+}
+
 export function parseTask(text: string) {
   return request<{ draft: TaskDraft; message: string; saved: false }>("/api/tasks/parse", {
     method: "POST",

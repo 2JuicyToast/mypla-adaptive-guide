@@ -3,21 +3,45 @@ import { NotebookPen } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { mockReflectionPrompts } from "@/lib/mpla-mock-data";
 
-/**
- * Weekly reflection placeholder. Answers will later feed the adaptive model,
- * which will respond with proposals the user approves.
- */
+const reflectionPrompts = [
+  {
+    id: "whatWentWell",
+    question: "What went well this week?",
+    placeholder: "Describe something that worked for you.",
+  },
+  {
+    id: "challenges",
+    question: "What challenges or difficulties came up?",
+    placeholder: "Note what made the week harder.",
+  },
+  {
+    id: "helpfulStrategies",
+    question: "What strategies or supports were helpful?",
+    placeholder: "Include routines, tools, or people that helped.",
+  },
+  {
+    id: "thingsToRemember",
+    question: "What is worth remembering for next week?",
+    placeholder: "Write down anything you want to carry forward.",
+  },
+];
+
 export function WeeklyReflectionPanel({
   onSubmit,
+  onRetry,
   saving = false,
   loading = false,
+  loadError = null,
+  hasSavedReflection = false,
   initialAnswers = {},
 }: {
   onSubmit?: (answers: Record<string, string>) => void;
+  onRetry?: () => void;
   saving?: boolean;
   loading?: boolean;
+  loadError?: string | null;
+  hasSavedReflection?: boolean;
   initialAnswers?: Record<string, string>;
 }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -41,16 +65,34 @@ export function WeeklyReflectionPanel({
           Loading your saved reflection…
         </p>
       ) : null}
+      {loadError ? (
+        <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+          <p role="alert" className="text-sm">
+            {loadError}
+          </p>
+          <Button className="mt-2" size="sm" variant="outline" onClick={onRetry}>
+            Retry loading
+          </Button>
+        </div>
+      ) : null}
+      {!loading && !loadError && !hasSavedReflection ? (
+        <p className="mt-3 text-sm text-muted-foreground">
+          No reflection has been saved for this week yet.
+        </p>
+      ) : null}
 
       <div className="mt-4 space-y-4">
-        {mockReflectionPrompts.map((prompt) => (
+        {reflectionPrompts.map((prompt) => (
           <div key={prompt.id} className="space-y-1.5">
-            <label className="text-sm font-medium">{prompt.question}</label>
+            <label htmlFor={`reflection-${prompt.id}`} className="text-sm font-medium">
+              {prompt.question}
+            </label>
             <Textarea
+              id={`reflection-${prompt.id}`}
               rows={2}
               placeholder={prompt.placeholder}
               value={answers[prompt.id] ?? ""}
-              disabled={loading}
+              disabled={loading || Boolean(loadError)}
               onChange={(event) =>
                 setAnswers((prev) => ({ ...prev, [prompt.id]: event.target.value }))
               }
@@ -59,7 +101,11 @@ export function WeeklyReflectionPanel({
         ))}
       </div>
 
-      <Button className="mt-4" disabled={saving || loading} onClick={() => onSubmit?.(answers)}>
+      <Button
+        className="mt-4"
+        disabled={saving || loading || Boolean(loadError)}
+        onClick={() => onSubmit?.(answers)}
+      >
         {saving ? "Saving…" : "Save reflection"}
       </Button>
     </section>

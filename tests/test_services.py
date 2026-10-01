@@ -40,6 +40,7 @@ def test_task_creation_and_completion(task_manager):
     )
     assert task.user_id == "student-1"
     assert task.actions[0].label == "Read notes"
+    task_manager.complete_action(task.id, task.actions[0].id)
     completed = task_manager.complete_task(task.id)
     assert completed.status == "done"
     assert completed.completed_at is not None
@@ -83,6 +84,24 @@ def test_next_action_skips_completed_actions(task_manager):
     task.actions[0].done = True
     task_manager.repository.save_task(task)
     assert task_manager.get_next_action(task.id)["label"] == "Write thesis"
+
+
+def test_complete_action_persists_completion_and_advances_next_action(task_manager):
+    task = task_manager.add_task(
+        TaskCreate(
+            name="Study for exam",
+            actions=[{"label": "Review notes"}, {"label": "Try practice questions"}],
+        )
+    )
+
+    updated = task_manager.complete_action(task.id, task.actions[0].id)
+
+    assert updated.actions[0].done is True
+    assert task_manager.find_task(task.id).actions[0].done is True
+    assert task_manager.get_next_action(task.id)["label"] == "Try practice questions"
+
+    task_manager.complete_action(task.id, task.actions[1].id)
+    assert task_manager.get_next_action(task.id) is None
 
 
 def test_task_ordering_is_persisted(task_manager):
