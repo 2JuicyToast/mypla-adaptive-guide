@@ -18,11 +18,12 @@ Verified in this session:
 - Authenticated task creation returned 201, later task reads returned 200 after page reload, and completing the task returned 200. This confirms a working Supabase-backed task read/write path.
 
 IN PROGRESS
-- Verify sign-out/re-login and confirm a completed task stays completed after another refresh.
+- Verify the signed-in session after sign-out/re-login. The user could not confirm the completed task visually; current and upcoming views only display tasks with those active statuses.
 - Supabase settings are active in Replit Secrets; the values were not printed or copied into project files.
 
 REMAINING
 - Verify task-action persistence and the complete signup/signout/re-login acceptance flow.
+- Completed tasks are filtered out of current and upcoming views; there is no completed-task history view to confirm their state visually after re-login.
 - Reflection UI currently leaves helpfulStrategies and summary empty; confirm all four requested reflection answers are captured.
 - Review mock schedule/notification and Explore content so samples are not mistaken for saved user data.
 - Verify remaining schedule interactions, error/empty/loading states, and responsive UI.
@@ -42,8 +43,8 @@ VERIFICATION
 - Frontend build: PASS — `bun run build` completed successfully.
 - Python tests: PASS — `python3 -m pytest -q` reported 23 passed; one Starlette/httpx deprecation warning.
 - Supabase connection: PASS — authenticated Supabase-backed task reads/writes returned success.
-- Authentication: PARTIALLY VERIFIED — a signed-in Bearer token was accepted by protected endpoints; sign-out/re-login was not tested.
-- Task persistence: PASS — create succeeded, task reads succeeded after page reload, and completion succeeded. Persistence of the completed state after another refresh remains untested.
+- Authentication: PARTIALLY VERIFIED — a signed-in Bearer token was accepted by protected endpoints; sign-out/re-login was not confirmed.
+- Task persistence: PASS for create → page-reload read → completion in Supabase. Post-sign-out/re-login retrieval of the completed task remains unverified because the app hides done tasks from the visible current/upcoming lists.
 
 ACTIVITY LOG
 - Read the Foundation Completion + Polish instructions and project overview.
@@ -54,6 +55,7 @@ ACTIVITY LOG
 - Restarted the existing `Start application` workflow; confirmed both Vite and FastAPI started and the preview displays the Supabase sign-in screen.
 - Checked `/api/health` (Supabase mode, persistent) and confirmed unauthenticated `/api/tasks` returns 401 as designed.
 - Confirmed from workflow logs that the signed-in user created a task (201), fetched tasks after page reload (200), and completed that task (200).
+- The user could not confirm the completed task was visible after sign-in; current and upcoming views filter out completed tasks, so absence from those screens does not establish data loss.
 - Updated the npm lockfile to include the already-declared Supabase JS dependency. Restored Vite's original exact version constraint.
 - Corrected stale setup notes that still said the sign-in screen/session provider did not exist.
 - Preview browser logs showed a hydration warning with extension-injected body attributes; no changes were made for it.
