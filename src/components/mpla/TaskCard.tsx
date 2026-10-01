@@ -41,7 +41,7 @@ export function TaskCard({
       </div>
 
       <TaskMetaRow
-        dueDate={task.dueDate}
+        dueDate={task.dueDate ?? null}
         estimatedMinutes={task.estimatedMinutes}
         energyRequired={task.energyRequired}
       />

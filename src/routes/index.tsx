@@ -6,21 +6,23 @@ import { AssumptionCheckDialog } from "@/components/mpla/AssumptionCheckDialog";
 import { BackendStatusNotice } from "@/components/mpla/BackendStatusNotice";
 import { GuidedTaskEntry } from "@/components/mpla/GuidedTaskEntry";
 import { MyPlaShell } from "@/components/mpla/MyPlaShell";
-import { ResourceRecommendations } from "@/components/mpla/ResourceRecommendations";
+import { ResourceLibrary } from "@/components/mpla/ResourceLibrary";
 import { ScheduleNotificationCard } from "@/components/mpla/ScheduleNotificationCard";
 import { StuckDialog } from "@/components/mpla/StuckDialog";
 import { TaskDraftReview } from "@/components/mpla/TaskDraftReview";
 import { TaskCard } from "@/components/mpla/TaskCard";
 import { Button } from "@/components/ui/button";
-import {
-  mockAssumptions,
-  mockNotifications,
-  mockProposals,
-  mockResources,
-} from "@/lib/mpla-mock-data";
+import { mockNotifications } from "@/lib/mpla-mock-data";
 import { useMyPlaTasks } from "@/hooks/use-mpla-tasks";
+import { useMyPlaPlanningData } from "@/hooks/use-mypla-planning-data";
 import { nextUnfinishedAction } from "@/components/mpla/TaskCard";
-import { parseTask, respondToAssumption, submitStuck, type TaskDraft } from "@/lib/mypla-api";
+import {
+  parseTask,
+  resolveProposal,
+  respondToAssumption,
+  submitStuck,
+  type TaskDraft,
+} from "@/lib/mypla-api";
 import type { Task } from "@/lib/mpla-types";
 
 export const Route = createFileRoute("/")({
@@ -49,6 +51,7 @@ function HomeDashboard() {
   const [draft, setDraft] = useState<TaskDraft | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
   const { tasks, mode, notice, setNotice, addTask, finishTask } = useMyPlaTasks();
+  const planningData = useMyPlaPlanningData();
   const current = tasks.filter((task) => task.status === "current");
 
   async function confirmDraft() {
@@ -70,7 +73,7 @@ function HomeDashboard() {
     try {
       const result = await submitStuck({
         taskId: payload.taskId,
-        actionId: action?.id,
+        ...(action?.id ? { actionId: action.id } : {}),
         reason: payload.reasonId,
         detail: payload.detail,
       });
@@ -80,18 +83,37 @@ function HomeDashboard() {
     }
   }
 
+  async function decideProposal(
+    proposalId: string,
+    decision: "approve" | "reject" | "adjust",
+    changes?: Record<string, unknown>,
+  ) {
+    try {
+      const proposal = await resolveProposal(proposalId, decision, changes);
+      await planningData.refresh();
+      setNotice(`Proposal ${proposal.status}.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "The proposal could not be updated.");
+    }
+  }
+
   return (
     <MyPlaShell
       title="Good afternoon, Josh"
       subtitle="Three tasks in play today. Here's what I'd start with — your call."
     >
-      <BackendStatusNotice mode={mode} notice={notice} />
+      <BackendStatusNotice mode={mode} notice={notice ?? planningData.error} />
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <section>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-lg font-semibold">Today's focus</h2>
-              <Button variant="ghost" size="sm" onClick={() => setAssumptionOpen(true)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={planningData.assumptions.length === 0}
+                onClick={() => setAssumptionOpen(true)}
+              >
                 Answer a quick check
               </Button>
             </div>
@@ -105,7 +127,9 @@ function HomeDashboard() {
                     void finishTask(completed.id).then(
                       () => setNotice(`Completed "${completed.name}".`),
                       (error: unknown) =>
-                        setNotice(error instanceof Error ? error.message : "Task completion failed."),
+                        setNotice(
+                          error instanceof Error ? error.message : "Task completion failed.",
+                        ),
                     );
                   }}
                 />
@@ -129,7 +153,11 @@ function HomeDashboard() {
                   setNotice(result.message);
                 },
                 (error: unknown) =>
-                  setNotice(error instanceof Error ? error.message : "The planning draft could not be prepared."),
+                  setNotice(
+                    error instanceof Error
+                      ? error.message
+                      : "The planning draft could not be prepared.",
+                  ),
               );
             }}
           />
@@ -144,14 +172,19 @@ function HomeDashboard() {
         </div>
 
         <div className="space-y-6">
-          <AiSuggestionPanel proposals={mockProposals} />
+          <AiSuggestionPanel
+            proposals={planningData.proposals}
+            onApprove={(proposal) => void decideProposal(proposal.id, "approve")}
+            onDecline={(proposal) => void decideProposal(proposal.id, "reject")}
+            onAdjust={(proposal, changes) => void decideProposal(proposal.id, "adjust", changes)}
+          />
           <section className="space-y-3">
             <h2 className="text-lg font-semibold">Notifications</h2>
             {mockNotifications.map((notification) => (
               <ScheduleNotificationCard key={notification.id} notification={notification} />
             ))}
           </section>
-          <ResourceRecommendations resources={mockResources} />
+          <ResourceLibrary />
         </div>
       </div>
 
@@ -162,12 +195,15 @@ function HomeDashboard() {
         onSubmit={(payload) => void recordStuck(payload)}
       />
       <AssumptionCheckDialog
-        assumption={mockAssumptions[0]}
-        open={assumptionOpen}
+        assumption={planningData.assumptions[0] ?? null}
+        open={assumptionOpen && planningData.assumptions.length > 0}
         onOpenChange={setAssumptionOpen}
         onRespond={(response) => {
           void respondToAssumption(response.assumptionId, response).then(
-            () => setNotice("Thanks. I’ve recorded your answer."),
+            () => {
+              setNotice("Thanks. I’ve recorded your answer.");
+              void planningData.refresh();
+            },
             (error: unknown) =>
               setNotice(error instanceof Error ? error.message : "Your answer could not be saved."),
           );

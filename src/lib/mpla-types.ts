@@ -35,11 +35,7 @@ export interface Task {
 }
 
 export type ProposalKind =
-  | "reschedule"
-  | "priority-change"
-  | "task-breakdown"
-  | "new-task"
-  | "schedule-block";
+  "reschedule" | "priority-change" | "task-breakdown" | "new-task" | "schedule-block";
 
 /**
  * Anything the assistant wants to change is first a Proposal.
@@ -50,8 +46,10 @@ export interface Proposal {
   kind: ProposalKind;
   title: string;
   rationale: string;
+  status: "pending" | "approved" | "edited" | "rejected" | "expired";
+  proposedChanges: Record<string, unknown>;
   /** Human-readable before/after lines rendered in the proposal card. */
-  changes: { field: string; from: string; to: string }[];
+  changes: { field: string; before: string; after: string }[];
   relatedTaskId?: string;
   createdAt: string;
 }
@@ -91,11 +89,13 @@ export interface ResourceRecommendation {
 export interface ScheduleBlock {
   id: string;
   label: string;
-  /** 24h "HH:MM". */
+  /** 24h "HH:MM" for display. */
   start: string;
   end: string;
   kind: "class" | "study" | "commute" | "break" | "personal" | "free";
   taskId?: string;
+  startAt?: string;
+  endAt?: string;
 }
 
 export interface WeeklyReflectionPrompt {

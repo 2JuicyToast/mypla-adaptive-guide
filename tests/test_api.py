@@ -89,6 +89,60 @@ def test_proposal_rejection_does_not_create_task_and_approval_does(client):
     assert "Rejected reading" not in task_names
 
 
+def test_adjusted_proposal_commits_only_the_user_edited_task(client):
+    before = {task["name"] for task in client.get("/api/tasks").json()}
+    proposal = client.post(
+        "/api/proposals",
+        json={
+            "kind": "new-task",
+            "title": "Add a study task",
+            "proposedChanges": {"task": {"name": "Original title"}},
+        },
+    ).json()
+
+    adjusted = client.post(
+        f"/api/proposals/{proposal['id']}/adjust",
+        json={"changes": {"task": {"name": "Edited title", "estimatedMinutes": 25}}},
+    )
+
+    assert adjusted.status_code == 200, adjusted.text
+    assert adjusted.json()["status"] == "edited"
+    after = {task["name"] for task in client.get("/api/tasks").json()}
+    assert "Edited title" in after - before
+    assert "Original title" not in after
+
+
+def test_uncommittable_proposal_stays_pending_instead_of_claiming_success(client):
+    proposal = client.post(
+        "/api/proposals",
+        json={"kind": "task-breakdown", "title": "Break down a task"},
+    ).json()
+
+    response = client.post(f"/api/proposals/{proposal['id']}/approve")
+
+    assert response.status_code == 422
+    current = client.get("/api/proposals").json()
+    assert next(item for item in current if item["id"] == proposal["id"])["status"] == "pending"
+
+
+def test_task_change_proposal_applies_a_validated_patch(client):
+    task = client.post("/api/tasks", json={"name": "Draft essay"}).json()
+    proposal = client.post(
+        "/api/proposals",
+        json={
+            "kind": "reschedule",
+            "title": "Update the task",
+            "relatedTaskId": task["id"],
+            "proposedChanges": {"taskPatch": {"name": "Draft essay introduction"}},
+        },
+    ).json()
+
+    response = client.post(f"/api/proposals/{proposal['id']}/approve")
+
+    assert response.status_code == 200, response.text
+    assert client.get(f"/api/tasks/{task['id']}").json()["name"] == "Draft essay introduction"
+
+
 def test_assumption_correction_is_saved_and_schedule_suggestion_is_a_proposal(client):
     answer = client.post(
         "/api/assumptions/a1/response",
@@ -109,3 +163,28 @@ def test_assumption_correction_is_saved_and_schedule_suggestion_is_a_proposal(cl
         block["taskId"] == schedule.json()["relatedTaskId"] and block["kind"] == "flexible"
         for block in blocks
     )
+
+
+def test_resource_and_weekly_reflection_are_saved_and_week_is_updated(client):
+    resource = client.post(
+        "/api/resources",
+        json={"name": "Essay outline", "purpose": "Plan a paper before drafting"},
+    )
+    assert resource.status_code == 201
+    assert resource.json()["userId"] == "demo-user"
+    assert client.get("/api/resources").json()[0]["name"] == "Essay outline"
+
+    first = client.post(
+        "/api/reflections",
+        json={"week": "2026-09-28", "challenges": "Hard to begin"},
+    )
+    second = client.post(
+        "/api/reflections",
+        json={"week": "2026-09-28", "challenges": "Started with an outline"},
+    )
+    assert first.status_code == 201
+    assert second.status_code == 201
+    reflections = client.get("/api/reflections").json()
+    assert len(reflections) == 1
+    assert reflections[0]["id"] == first.json()["id"]
+    assert reflections[0]["challenges"] == "Started with an outline"

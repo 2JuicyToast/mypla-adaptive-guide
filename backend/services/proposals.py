@@ -1,9 +1,18 @@
 """Proposal lifecycle. Proposed changes are applied only by explicit approval."""
 
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from backend.database.repository import MemoryRepository, SupabaseRepository
-from backend.models import Proposal, ProposalCreate, ProposalStatus, ScheduleBlock, TaskCreate, utc_now
+from backend.models import (
+    Proposal,
+    ProposalCreate,
+    ProposalStatus,
+    ScheduleBlock,
+    TaskCreate,
+    TaskPatch,
+    utc_now,
+)
 from backend.services.task_manager import TaskManager
 
 Repository = MemoryRepository | SupabaseRepository
@@ -37,11 +46,17 @@ class ProposalService:
             if decision == "adjust":
                 if adjusted_changes is None:
                     raise HTTPException(status_code=422, detail="Adjusted changes are required.")
+                original_changes = proposal.proposed_changes
                 proposal.proposed_changes = adjusted_changes
+                try:
+                    self._commit(proposal)
+                except Exception:
+                    proposal.proposed_changes = original_changes
+                    raise
                 proposal.status = ProposalStatus.EDITED
             else:
+                self._commit(proposal)
                 proposal.status = ProposalStatus.APPROVED
-            self._commit(proposal)
         else:
             raise HTTPException(status_code=422, detail="Decision must be approve, adjust, or reject.")
         proposal.resolved_at = utc_now()
@@ -53,16 +68,32 @@ class ProposalService:
             payload = changes.get("task")
             if not isinstance(payload, dict):
                 raise HTTPException(status_code=422, detail="The proposal does not include a task draft.")
-            self.tasks.add_task(TaskCreate.model_validate(payload))
+            try:
+                task = TaskCreate.model_validate(payload)
+            except ValidationError as exc:
+                raise HTTPException(status_code=422, detail="The proposed task is invalid.") from exc
+            self.tasks.add_task(task)
         elif proposal.kind == "schedule-block":
             block_data = changes.get("scheduleBlock")
-            if isinstance(block_data, dict):
+            if not isinstance(block_data, dict):
+                raise HTTPException(status_code=422, detail="The proposal does not include a schedule block.")
+            try:
                 block = ScheduleBlock.model_validate({**block_data, "user_id": self.user_id})
-                self.repository.save_schedule_block(block)
+            except ValidationError as exc:
+                raise HTTPException(status_code=422, detail="The proposed schedule block is invalid.") from exc
+            self.repository.save_schedule_block(block)
         elif proposal.kind in {"reschedule", "priority-change", "task-breakdown", "schedule-block"}:
             task_id = proposal.related_task_id or changes.get("taskId")
             patch = changes.get("taskPatch")
-            if task_id and isinstance(patch, dict):
-                self.tasks.update_task(task_id, patch)
-            # Proposals without a concrete task patch are still resolved, but do
-            # not modify application state.
+            if not task_id or not isinstance(patch, dict):
+                raise HTTPException(
+                    status_code=422,
+                    detail="The proposal does not include a task and supported task changes.",
+                )
+            try:
+                task_patch = TaskPatch.model_validate(patch)
+            except ValidationError as exc:
+                raise HTTPException(status_code=422, detail="The proposed task changes are invalid.") from exc
+            self.tasks.update_task(task_id, task_patch)
+        else:
+            raise HTTPException(status_code=422, detail=f"Unsupported proposal type: {proposal.kind}.")

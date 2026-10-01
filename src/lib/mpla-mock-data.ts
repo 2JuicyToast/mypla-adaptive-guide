@@ -99,19 +99,23 @@ export const mockProposals: Proposal[] = [
     title: "Move the essay draft to Thursday morning",
     rationale:
       "Wednesday evening already holds the statistics set, and mornings are when you usually finish writing tasks.",
+    status: "pending",
+    proposedChanges: {},
     relatedTaskId: "t2",
     createdAt: "2026-09-30T08:10:00Z",
-    changes: [{ field: "Planned slot", from: "Wed 19:00", to: "Thu 09:30" }],
+    changes: [{ field: "Planned slot", before: "Wed 19:00", after: "Thu 09:30" }],
   },
   {
     id: "p2",
     kind: "task-breakdown",
     title: "Split the slide deck into three smaller actions",
     rationale: "Two hours in one block rarely fits your weekday gaps.",
+    status: "pending",
+    proposedChanges: {},
     relatedTaskId: "t4",
     createdAt: "2026-09-30T08:12:00Z",
     changes: [
-      { field: "Actions", from: "1 action (120 min)", to: "3 actions (40 min each)" },
+      { field: "Actions", before: "1 action (120 min)", after: "3 actions (40 min each)" },
     ],
   },
 ];

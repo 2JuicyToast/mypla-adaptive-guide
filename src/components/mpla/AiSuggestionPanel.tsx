@@ -16,7 +16,7 @@ export function AiSuggestionPanel({
   proposals: Proposal[];
   onApprove?: (proposal: Proposal) => void;
   onDecline?: (proposal: Proposal) => void;
-  onAdjust?: (proposal: Proposal) => void;
+  onAdjust?: (proposal: Proposal, changes: Record<string, unknown>) => void;
 }) {
   return (
     <section className="surface-panel p-5">
@@ -43,9 +43,9 @@ export function AiSuggestionPanel({
             <ProposalCard
               key={proposal.id}
               proposal={proposal}
-              onApprove={onApprove}
-              onDecline={onDecline}
-              onAdjust={onAdjust}
+              {...(onApprove ? { onApprove } : {})}
+              {...(onDecline ? { onDecline } : {})}
+              {...(onAdjust ? { onAdjust } : {})}
             />
           ))
         )}

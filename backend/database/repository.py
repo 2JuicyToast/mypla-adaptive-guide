@@ -205,6 +205,17 @@ class MemoryRepository:
         return [item for item in self.reflections.values() if item.user_id == user_id]
 
     def save_reflection(self, reflection: Reflection) -> Reflection:
+        existing = next(
+            (
+                item
+                for item in self.reflections.values()
+                if item.user_id == reflection.user_id and item.week == reflection.week
+            ),
+            None,
+        )
+        if existing:
+            reflection.id = existing.id
+            reflection.created_at = existing.created_at
         reflection.updated_at = utc_now()
         self.reflections[reflection.id] = reflection
         return reflection
@@ -241,6 +252,7 @@ class SupabaseRepository:
         row = task.model_dump(mode="json", exclude={"actions"})
         row["importance"] = row.pop("priority")
         self.client.table("tasks").upsert(row).execute()
+        action_rows = []
         for action in task.actions:
             action_row = action.model_dump(mode="json", by_alias=False)
             action_row.update(
@@ -250,7 +262,27 @@ class SupabaseRepository:
                 status="completed" if action.done else "pending",
             )
             action_row.pop("done", None)
-            self.client.table("task_actions").upsert(action_row).execute()
+            action_rows.append(action_row)
+
+        # Keep nested actions in sync when an edit removes an action. Upserting
+        # the full list together also lets PostgreSQL validate parent links
+        # between actions in the same statement.
+        existing_rows = (
+            self.client.table("task_actions")
+            .select("id")
+            .eq("task_id", task.id)
+            .eq("user_id", task.user_id)
+            .execute()
+            .data
+        )
+        action_ids = {row["id"] for row in action_rows}
+        if action_rows:
+            self.client.table("task_actions").upsert(action_rows).execute()
+        removed_ids = [row["id"] for row in existing_rows if row["id"] not in action_ids]
+        if removed_ids:
+            self.client.table("task_actions").delete().in_("id", removed_ids).eq(
+                "task_id", task.id
+            ).eq("user_id", task.user_id).execute()
         return task
 
     def _task_from_row(self, row: dict[str, Any]) -> Task:
@@ -321,21 +353,6 @@ class SupabaseRepository:
         self.client.table("coach_knowledge").upsert(row).execute()
         return assumption
 
-    def save_stuck_submission(self, submission: dict[str, Any]) -> None:
-        # The schema keeps stuck submissions as coach knowledge until a dedicated
-        # interaction table is introduced. No task state is changed here.
-        self.client.table("coach_knowledge").insert(
-            {
-                "user_id": self.user_id,
-                "topic": "stuck_submission",
-                "statement": submission.get("detail") or submission["reason"],
-                "confidence": "observed",
-                "source": "user",
-                "active": True,
-                "user_correction": None,
-            }
-        ).execute()
-
     def save_schedule_block(self, block: ScheduleBlock) -> ScheduleBlock:
         self.client.table("schedule_blocks").upsert(
             block.model_dump(mode="json", by_alias=False)
@@ -373,7 +390,10 @@ class SupabaseRepository:
         return [Reflection.model_validate(row) for row in rows]
 
     def save_reflection(self, reflection: Reflection) -> Reflection:
-        self.client.table("reflections").upsert(reflection.model_dump(mode="json", by_alias=False)).execute()
+        self.client.table("reflections").upsert(
+            reflection.model_dump(mode="json", by_alias=False),
+            on_conflict="user_id,week",
+        ).execute()
         return reflection
 
     @staticmethod

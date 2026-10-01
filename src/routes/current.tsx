@@ -6,8 +6,8 @@ import { BackendStatusNotice } from "@/components/mpla/BackendStatusNotice";
 import { MyPlaShell } from "@/components/mpla/MyPlaShell";
 import { StuckDialog } from "@/components/mpla/StuckDialog";
 import { TaskCard } from "@/components/mpla/TaskCard";
-import { mockAssumptions } from "@/lib/mpla-mock-data";
 import { useMyPlaTasks } from "@/hooks/use-mpla-tasks";
+import { useMyPlaPlanningData } from "@/hooks/use-mypla-planning-data";
 import { nextUnfinishedAction } from "@/components/mpla/TaskCard";
 import { respondToAssumption, submitStuck } from "@/lib/mypla-api";
 import type { Task } from "@/lib/mpla-types";
@@ -18,7 +18,10 @@ export const Route = createFileRoute("/current")({
       { title: "Current tasks — MyPLA" },
       { name: "description", content: "The tasks MyPLA thinks deserve your attention now." },
       { property: "og:title", content: "Current tasks — MyPLA" },
-      { property: "og:description", content: "What to work on now, with one clear next action each." },
+      {
+        property: "og:description",
+        content: "What to work on now, with one clear next action each.",
+      },
     ],
   }),
   component: CurrentTasks,
@@ -28,6 +31,7 @@ function CurrentTasks() {
   const [stuckTask, setStuckTask] = useState<Task | null>(null);
   const [checkTask, setCheckTask] = useState<Task | null>(null);
   const { tasks, mode, notice, setNotice, finishTask } = useMyPlaTasks();
+  const planningData = useMyPlaPlanningData();
   const current = tasks.filter((task) => task.status === "current");
 
   return (
@@ -42,7 +46,7 @@ function CurrentTasks() {
             key={task.id}
             task={task}
             onStuck={setStuckTask}
-            onStart={setCheckTask}
+            {...(planningData.assumptions.length > 0 ? { onStart: setCheckTask } : {})}
             onComplete={(completed) => {
               void finishTask(completed.id).then(
                 () => setNotice(`Completed "${completed.name}".`),
@@ -62,7 +66,7 @@ function CurrentTasks() {
           const action = stuckTask ? nextUnfinishedAction(stuckTask) : null;
           void submitStuck({
             taskId: payload.taskId,
-            actionId: action?.id,
+            ...(action?.id ? { actionId: action.id } : {}),
             reason: payload.reasonId,
             detail: payload.detail,
           }).then(
@@ -73,12 +77,15 @@ function CurrentTasks() {
         }}
       />
       <AssumptionCheckDialog
-        assumption={mockAssumptions[0]}
-        open={checkTask !== null}
+        assumption={planningData.assumptions[0] ?? null}
+        open={checkTask !== null && planningData.assumptions.length > 0}
         onOpenChange={(open) => !open && setCheckTask(null)}
         onRespond={(response) => {
           void respondToAssumption(response.assumptionId, response).then(
-            () => setNotice("Thanks. I’ve recorded your answer."),
+            () => {
+              setNotice("Thanks. I’ve recorded your answer.");
+              void planningData.refresh();
+            },
             (error: unknown) =>
               setNotice(error instanceof Error ? error.message : "Your answer could not be saved."),
           );
