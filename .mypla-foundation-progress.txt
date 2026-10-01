@@ -1,0 +1,74 @@
+MyPLA Foundation Completion + Polish — Progress Record
+Last updated: 2026-10-01
+
+Purpose
+Track the Foundation Completion + Polish checklist against repository evidence and record work performed in this session. “Present in code” is not the same as verified against a live Supabase project. This file is a manually maintained record, not an automatic background logger.
+
+Visibility
+This dotfile is hidden in many ordinary file listings and is not part of the app UI. It is still inside the project workspace and can be read by anyone with access to the workspace or repository; it is not private or secure storage. No credentials or personal story content are recorded here.
+
+Status key
+- Present: relevant implementation is visible in the current code.
+- Partial / unverified: some pieces exist, but a stated requirement or real integration flow is incomplete or has not been verified.
+- Missing: no implementation was found during this review.
+
+Checklist assessment
+
+1. Supabase configuration — PARTIAL / UNVERIFIED
+The initial SQL schema, row-level security policies, Supabase client configuration endpoint, and user-scoped PostgREST repository adapter exist. Backend configuration reads SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY. Neither is in the available secret list for this workspace snapshot (SESSION_SECRET is the only listed secret), so a live connection and persistent writes have not been verified.
+
+2. Authentication — PRESENT IN CODE; LIVE FLOW UNVERIFIED
+The frontend has sign-up, sign-in, sign-out, session loading, an app-wide auth gate when Supabase is enabled, and access-token forwarding. FastAPI derives its Supabase repository/user from a Bearer token and verifies the token; application routes do not accept a client-supplied user_id as identity. No configured Supabase project is available here to verify signup, refresh persistence, or protected requests end to end.
+
+3. Persistent task loop — PARTIAL / UNVERIFIED
+Task create/list/complete APIs and frontend calls exist. The Supabase adapter maps tasks to database rows; the UI reloads tasks from the API. Existing API/service tests use an in-memory repository, not a live Supabase database. The create-refresh-complete-refresh acceptance loop remains unverified against Supabase.
+
+4. Persistent task actions — PARTIAL / UNVERIFIED
+The Supabase adapter stores task actions and completed state; task UI/API logic can identify an unfinished next action. Source-level tests cover skipping completed actions, but nested action persistence and refresh behavior have not been tested against Supabase.
+
+5. Deterministic priority — PRESENT IN BACKEND; UI ACCEPTANCE UNVERIFIED
+PriorityEngine calculates deadline, importance, duration, and energy-fit points with an explanation. Existing source tests cover deterministic scoring and deadline ordering. This review did not verify that every requested score/explanation is visible in the UI or that all task edits recalculate visible ordering correctly.
+
+6. Scheduler — PARTIAL
+A deterministic weekday template, saved schedule blocks, task-fit suggestions, energy matching, and proposal-based schedule creation are present. The UI/API accepts available minutes and energy. Full handling of fixed versus flexible time and all listed user situations has not been demonstrated. Schedule notifications still use sample data.
+
+7. Proposals — PRESENT IN CODE; PERSISTENT FLOW UNVERIFIED
+Create/list/approve/adjust/reject paths exist. Supported changes are committed only after approval; rejection leaves task data unchanged. Tests cover these behaviors in memory. Supabase-backed proposal persistence and the full user-facing flow remain unverified.
+
+8. Assumptions — PRESENT IN CODE; LIVE FLOW UNVERIFIED
+Backend routes and storage exist for Yes/No/Not sure and corrections. The service records corrections and does not silently treat uncertainty as confirmation. Tests cover these rules in memory; the authenticated persistent UI path has not been exercised.
+
+9. “I’m Stuck” — PARTIAL / UNVERIFIED
+The UI submits a task, optional action, reason, and details. FastAPI validates ownership/action association, stores the report, and returns a deterministic placeholder response. No dedicated end-to-end or live persistence test was found in the reviewed test files.
+
+10. Resources — PRESENT IN CODE; LIVE FLOW UNVERIFIED
+The resource UI calls API list/create functions, and repository methods plus database schema exist. Persistent resource CRUD has not been verified against Supabase.
+
+11. Reflections — PARTIAL
+The reflection UI loads and saves entries through the API; repository/schema persistence paths exist. The current UI save mapping leaves helpfulStrategies and summary empty, so the full set of reflection fields in the checklist is not yet captured by that screen. Live persistence is unverified.
+
+12. Remaining mock/demo data — PARTIAL
+Task sample fallback is explicitly labeled in the UI when the API is unavailable. Mock schedule/notifications and Explore content remain in route rendering; reflection prompts are static. These areas still need review so demo content is not mistaken for saved user data.
+
+13. UI polish — PARTIAL / NOT VISUALLY REVIEWED
+Existing Lovable interface, authentication screens, loading/error messages, and feature screens are present. This review did not run the app or inspect responsive screenshots, so visual consistency and the full set of empty/loading/error states are not accepted as complete.
+
+14. Error handling — PARTIAL
+Several API and UI paths report user-friendly errors, and technical errors are logged by the root error boundary. Runtime error behavior across all Supabase operations has not been verified.
+
+15. Tests — PARTIAL
+Python service and API tests cover task operations, deterministic priority, next action, ordering, proposal decisions, assumptions, schedule suggestions, resources, and reflections using in-memory storage. The requested authentication-dependent and Supabase persistence integration coverage is absent from the reviewed tests. No tests or build were run during this assessment.
+
+16. AIService boundary — PRESENT
+README and backend source describe deterministic placeholder behavior; task parsing does not save automatically. No actual LLM integration was found or introduced.
+
+17. Final acceptance flow — NOT VERIFIED
+The full signup-to-Supabase-to-task/action/stuck/proposal/refresh/signout flow cannot be accepted from source inspection alone. Required Supabase settings are not available in the current workspace snapshot.
+
+Session activity log
+- Read the Foundation Completion + Polish checklist and the repository README/package metadata.
+- Inspected backend routes, storage adapters, deterministic services, auth provider/client, task/planning hooks, schedule/reflection routes, and existing tests.
+- Classified checklist items above from source/test coverage; distinguished code presence from live integration proof.
+- Noted that the other attached text is personal narrative material, not project implementation instructions; its contents were not copied into this record.
+- No application code, dependencies, secrets, database, or workflow configuration were changed. No tests/build were run. The configured “Start application” workflow is reported failed in the current environment snapshot; it was not restarted because this request was an assessment and progress record, not a request to set up or run the app.
+- Created this hidden progress record. Update it manually as implementation or verification work proceeds.

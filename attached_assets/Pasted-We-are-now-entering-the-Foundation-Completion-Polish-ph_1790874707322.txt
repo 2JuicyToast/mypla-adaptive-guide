@@ -1,0 +1,386 @@
+We are now entering the **Foundation Completion + Polish phase** of MyPLA.
+
+Do NOT add an LLM yet.
+
+Do NOT rebuild the application.
+
+Do NOT redesign the existing Lovable frontend from scratch.
+
+The goal is to make the existing MyPLA environment fully functional, persistent, polished, and ready for a future LLM integration.
+
+## 1. Supabase configuration
+
+The project uses the dedicated MyPLA Supabase project.
+
+Configure these through Replit Secrets/environment variables:
+
+```text
+SUPABASE_URL
+SUPABASE_PUBLISHABLE_KEY
+```
+
+Never commit credentials to GitHub.
+
+Do not use the MyCommNet Supabase project.
+
+Verify that the application successfully connects to Supabase.
+
+## 2. Authentication
+
+Implement Supabase Auth in the React frontend.
+
+Create a simple authentication flow:
+
+* sign up
+* sign in
+* sign out
+* persistent session
+* protected application routes
+
+After authentication, the frontend must obtain the user's Supabase access token.
+
+API requests to FastAPI must send:
+
+```text
+Authorization: Bearer <access_token>
+```
+
+Do not create a second independent authentication system.
+
+FastAPI should continue verifying the Supabase JWT and determining the current user from the authenticated token.
+
+Do not allow the frontend to submit an arbitrary `user_id` and have the backend trust it.
+
+## 3. Persistent task loop
+
+Make this work completely:
+
+```text
+Create task
+→ Save to Supabase
+→ Display task
+→ Refresh page
+→ Task remains
+→ Complete task
+→ Save completion
+→ Refresh
+→ Completion remains
+```
+
+Remove temporary/mock task state wherever real Supabase persistence now exists.
+
+## 4. Persistent task actions
+
+Verify:
+
+```text
+Task
+ └── Action
+      └── Sub-action
+```
+
+works with Supabase persistence.
+
+The UI should normally show the next unfinished action rather than dumping all completed actions onto the user.
+
+Completed actions must remain stored.
+
+## 5. Priority engine
+
+Keep priority calculation deterministic.
+
+Do NOT use an LLM.
+
+Priority must continue using the existing PriorityEngine.
+
+Verify:
+
+* deadline
+* importance
+* estimated time
+* energy
+* priority score
+* explanation
+
+are actually reflected in the UI.
+
+When the user creates or changes a task, the displayed ordering should update appropriately.
+
+## 6. Scheduler
+
+Connect the scheduler to real task data.
+
+Support:
+
+* fixed schedule blocks
+* flexible time
+* available/free time
+* task duration
+* energy requirement
+* deadlines
+* typical weekday schedule
+
+The following user interactions should be represented in the architecture:
+
+```text
+"I'm free for 30 minutes."
+
+"I'm free for an hour."
+
+"Something came up."
+
+"I already know what I want to do."
+```
+
+Do not add an LLM to interpret these yet.
+
+Use deterministic handling/placeholders where necessary.
+
+## 7. Proposal system
+
+Verify that proposals are real persisted objects.
+
+The workflow must be:
+
+```text
+System suggests change
+        ↓
+Proposal created
+        ↓
+User sees proposal
+        ↓
+Approve / Edit / Reject
+        ↓
+Only then is the actual data modified
+```
+
+Important:
+
+The AI must NEVER directly mutate important user data later.
+
+This proposal system is the safety/control boundary for the future AI.
+
+## 8. Assumptions
+
+Connect the existing assumption UI to the backend.
+
+Support:
+
+```text
+Yes
+No
+Correction
+```
+
+When the user corrects an assumption, store that correction.
+
+Do not silently convert an AI assumption into permanent user information.
+
+## 9. "I'm Stuck"
+
+Make the existing "I'm Stuck" feature fully functional.
+
+The user should be able to:
+
+1. identify the current task
+2. identify the current action
+3. explain what is preventing progress
+4. submit the report
+
+The system should persist the report.
+
+For now, use deterministic placeholder responses where intelligent reasoning would eventually occur.
+
+## 10. Resources
+
+Connect the resource system to Supabase.
+
+Users should eventually be able to save:
+
+* AI tools
+* prompts
+* websites
+* videos
+* study methods
+* templates
+* references
+* personal notes
+
+Do not require an LLM yet.
+
+## 11. Reflections
+
+Connect weekly reflections to Supabase.
+
+The user should be able to record:
+
+* what went well
+* what was difficult
+* what helped
+* what is worth remembering
+
+Do not implement machine learning yet.
+
+Just make sure the data is properly stored so the future adaptive system can use it.
+
+## 12. Remove unnecessary mock data
+
+Identify remaining mock/demo data.
+
+Replace it with real backend data wherever the corresponding feature already exists.
+
+If a feature intentionally remains a placeholder, clearly label it as such rather than presenting fake information as real user data.
+
+## 13. UI polish
+
+Keep the existing Lovable visual identity.
+
+Improve:
+
+* loading states
+* error states
+* empty states
+* responsive behavior
+* navigation
+* authentication screens
+* task creation
+* current task
+* next action
+* schedule
+* proposals
+* assumptions
+* "I'm Stuck"
+* resources
+* reflections
+
+The application should feel like one coherent product rather than a collection of connected prototypes.
+
+## 14. Error handling
+
+Do not silently swallow backend or Supabase errors.
+
+Display user-friendly messages.
+
+Log technical details appropriately for development.
+
+Never expose secrets.
+
+## 15. Testing
+
+Run the existing Python tests.
+
+Add/update tests for:
+
+* authentication-dependent API behavior
+* task persistence
+* task actions
+* priority calculation
+* task ordering
+* proposal approval
+* proposal rejection
+* assumption correction
+* schedule handling
+
+Also verify that the frontend builds successfully.
+
+## 16. AIService
+
+Keep:
+
+```text
+backend/services/ai_service.py
+```
+
+but do NOT connect an actual LLM.
+
+The service should remain an interface/place-holder that can later support:
+
+* natural-language task input
+* contextual questions
+* task breakdown
+* stuck assistance
+* resource recommendations
+* assumption detection
+* reflection analysis
+
+Do not add OpenAI, Anthropic, Gemini, or another LLM yet.
+
+## 17. Final acceptance test
+
+Before declaring this phase complete, verify this complete flow:
+
+```text
+New user
+↓
+Sign up
+↓
+Sign in
+↓
+Create task
+↓
+Task saved to Supabase
+↓
+Priority calculated
+↓
+Task appears in current/upcoming area
+↓
+Start task
+↓
+See next action
+↓
+Complete action
+↓
+Next action appears
+↓
+Get stuck
+↓
+Submit stuck report
+↓
+Create/receive deterministic suggestion
+↓
+Approve proposal
+↓
+Task changes
+↓
+Refresh page
+↓
+Everything remains correct
+↓
+Sign out
+↓
+Sign back in
+↓
+User's data is still present
+```
+
+Only after this flow works should we begin the LLM integration.
+
+## Final principle
+
+MyPLA's architecture should remain:
+
+```text
+React
+  ↓
+FastAPI
+  ↓
+Deterministic MyPLA logic
+  ↓
+Supabase
+```
+
+with the future:
+
+```text
+                ┌── Deterministic Logic
+FastAPI ────────┤
+                └── AIService
+                       ↓
+                    Proposal
+                       ↓
+                  User approval
+                       ↓
+                    Commit
+```
+
+The objective of this phase is to make the "house" completely functional before we introduce the "pet."
