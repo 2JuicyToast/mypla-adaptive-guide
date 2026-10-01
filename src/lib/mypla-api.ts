@@ -3,13 +3,21 @@ import { getSupabaseAccessToken } from "@/lib/supabase-client";
 
 export interface TaskDraft {
   name: string;
+  description?: string | null;
   course?: string | null;
+  category?: string | null;
   dueDate?: string | null;
   estimatedMinutes: number;
   priority: "high" | "medium" | "low";
   energyRequired: "high" | "medium" | "low";
   status?: TaskStatus;
-  actions?: { label: string; estimatedMinutes?: number }[];
+  actions?: {
+    label: string;
+    description?: string | null;
+    estimatedMinutes?: number | null;
+    energyRequired?: "high" | "medium" | "low" | null;
+    parentActionId?: string | null;
+  }[];
 }
 
 export interface ApiHealth {

@@ -1,8 +1,11 @@
 import pytest
 from fastapi.testclient import TestClient
 
+import backend.main as main
 from backend.database.repository import MemoryRepository
 from backend.main import RequestContext, app, get_context
+from backend.models import TaskCreate
+from backend.services.ai_errors import AIProviderUnavailableError
 
 
 @pytest.fixture
@@ -104,13 +107,71 @@ def test_task_delete_removes_only_the_requested_user_task(client):
     assert all(task["id"] != task_id for task in client.get("/api/tasks").json())
 
 
-def test_natural_language_endpoint_returns_a_draft_without_saving(client):
+def test_natural_language_endpoint_returns_an_unsaved_draft_and_python_scores_after_confirmation(
+    client, monkeypatch
+):
     before = len(client.get("/api/tasks").json())
+    draft = TaskCreate(
+        name="Prepare my biology notes",
+        course="Biology",
+        priority="high",
+        estimatedMinutes=45,
+    )
+    monkeypatch.setattr(
+        main.ai_service,
+        "parse_task",
+        lambda text: {
+            "draft": draft,
+            "message": "Review or edit this task draft.",
+            "provider": "test-parser",
+        },
+    )
+
     response = client.post("/api/tasks/parse", json={"text": "Prepare my biology notes"})
+
     assert response.status_code == 200
     assert response.json()["saved"] is False
-    assert response.json()["draft"]["name"] == "Prepare my biology notes"
+    assert response.json()["provider"] == "test-parser"
+    assert response.json()["draft"]["name"] == draft.name
+    assert "priorityScore" not in response.json()["draft"]
     assert len(client.get("/api/tasks").json()) == before
+
+    confirmed = client.post("/api/tasks", json=response.json()["draft"])
+    assert confirmed.status_code == 201, confirmed.text
+    assert confirmed.json()["priorityScore"] > 0
+    assert "importance: high" in confirmed.json()["priorityExplanation"]
+
+
+def test_natural_language_endpoint_returns_a_safe_error_when_provider_is_unavailable(
+    client, monkeypatch
+):
+    def unavailable(_text):
+        raise AIProviderUnavailableError("provider unavailable")
+
+    monkeypatch.setattr(main.ai_service, "parse_task", unavailable)
+    response = client.post("/api/tasks/parse", json={"text": "A synthetic test task"})
+
+    assert response.status_code == 503
+    assert "Your task was not saved" in response.json()["detail"]
+
+
+def test_natural_language_endpoint_requires_supabase_auth_when_persistence_is_enabled(
+    monkeypatch,
+):
+    monkeypatch.setenv("SUPABASE_URL", "https://mypla-test.supabase.co")
+    monkeypatch.setenv("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_test")
+    prior_overrides = app.dependency_overrides.copy()
+    app.dependency_overrides.clear()
+    try:
+        with TestClient(app) as unauthenticated:
+            response = unauthenticated.post(
+                "/api/tasks/parse", json={"text": "A synthetic test task"}
+            )
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(prior_overrides)
+
+    assert response.status_code == 401
 
 
 def test_proposal_rejection_does_not_create_task_and_approval_does(client):

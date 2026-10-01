@@ -23,11 +23,32 @@ fi
 
 uv run --frozen --no-sync python -m uvicorn "${api_args[@]}" &
 api_pid=$!
+web_pid=""
+
+stop_process_tree() {
+  local pid="$1"
+  local child
+
+  while read -r child; do
+    [[ -n "$child" ]] && stop_process_tree "$child"
+  done < <(ps -o pid= --ppid "$pid" 2>/dev/null || true)
+
+  kill -TERM "$pid" 2>/dev/null || true
+}
 
 cleanup() {
-  kill "$api_pid" 2>/dev/null || true
+  trap - EXIT INT TERM
+  if [[ -n "$web_pid" ]]; then
+    stop_process_tree "$web_pid"
+    wait "$web_pid" 2>/dev/null || true
+  fi
+  stop_process_tree "$api_pid"
   wait "$api_pid" 2>/dev/null || true
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
 
-bun run dev:web
+bun run dev:web &
+web_pid=$!
+wait "$web_pid"

@@ -1,0 +1,230 @@
+We are beginning the first MyPLA LLM integration.
+
+Do NOT build the full AI assistant.
+
+Do NOT add autonomous behavior.
+
+Do NOT add embeddings, vector databases, agent loops, long-term chat memory, or tool calling yet.
+
+Implement ONLY natural-language task parsing.
+
+## Provider
+
+Use OpenRouter.
+
+Environment variables:
+
+```text
+OPENROUTER_API_KEY
+OPENROUTER_MODEL=nvidia/nemotron-3-super-120b-a12b:free
+```
+
+OpenRouter API base URL:
+
+```text
+https://openrouter.ai/api/v1
+```
+
+Keep the API key server-side only.
+
+Never expose the API key to the browser, frontend bundle, logs, progress file, or GitHub.
+
+## Architecture
+
+Preserve:
+
+```text
+React
+↓
+FastAPI
+↓
+AIService
+↓
+OpenRouter
+↓
+Nemotron
+```
+
+The existing deterministic MyPLA logic remains authoritative.
+
+The LLM may interpret user language, but it must not directly modify tasks, schedules, priorities, reflections, resources, or other persistent data.
+
+## AIService
+
+Use the existing:
+
+```text
+backend/services/ai_service.py
+```
+
+as the abstraction boundary.
+
+Create a clean provider-neutral implementation so the rest of MyPLA does not depend directly on OpenRouter.
+
+The AIService should expose a natural-language task parsing operation.
+
+## Structured response
+
+The model must return structured JSON matching the existing MyPLA task draft shape.
+
+The draft should support:
+
+* name
+* description
+* course/category when identifiable
+* due date when identifiable
+* estimated minutes
+* importance/priority information
+* energy requirement
+* initial action(s) when useful
+
+Use structured-output / JSON-schema enforcement rather than asking the model to "please return JSON" in plain text.
+
+Validate the model response with the existing Pydantic models before returning it to the frontend.
+
+If the model returns invalid data, do not save it.
+
+Return a user-friendly error instead.
+
+## Important priority rule
+
+The LLM may estimate or extract importance, but it must NOT become the authority for the final MyPLA priority score.
+
+After the draft is accepted, Python's existing PriorityEngine must calculate the actual deterministic priority score and explanation.
+
+The LLM interprets.
+
+Python decides.
+
+## Existing UI
+
+Connect the result to the existing:
+
+```text
+TaskDraftReview
+```
+
+The flow must remain:
+
+```text
+User enters natural language
+↓
+AI parses it
+↓
+Structured draft returned
+↓
+TaskDraftReview displays what MyPLA understood
+↓
+User can review/edit/cancel
+↓
+User confirms
+↓
+Python creates the actual task
+↓
+PriorityEngine calculates priority
+↓
+Supabase persists the task
+```
+
+The LLM must never bypass TaskDraftReview.
+
+## API
+
+Update the existing natural-language parsing endpoint to use the real AIService instead of the deterministic placeholder.
+
+Keep the endpoint uncommitted/preview-only.
+
+The endpoint should return the structured draft and indicate that it has not been saved yet.
+
+Also make sure AI-backed endpoints are appropriately protected by the existing Supabase authentication architecture.
+
+## Context
+
+For this first phase, DO NOT send the user's entire account, schedule, history, reflections, or resources to the model.
+
+The only input should be the user's task-intake text.
+
+We will add controlled user context in a later AI phase.
+
+## Testing
+
+Use synthetic/demo examples only for AI testing.
+
+Do NOT send confidential or sensitive personal information to the free Nemotron endpoint.
+
+Test with examples such as:
+
+"Physics lab due Thursday, probably two hours, pretty important."
+
+"Read chapter 6 tonight. It should take about 30 minutes and is low priority."
+
+"I need to finish my calculus homework by Friday. It will probably take an hour."
+
+Verify that the model produces valid structured output.
+
+Test malformed/ambiguous responses and API failures.
+
+The application must fail gracefully if OpenRouter is unavailable or rate limited.
+
+## Verification
+
+Run:
+
+```text
+bun run build
+python3 -m pytest -q
+```
+
+Add tests for:
+
+* valid structured response
+* invalid model response
+* OpenRouter failure
+* missing API key
+* draft is not automatically saved
+* PriorityEngine remains authoritative
+
+Do not hardcode an API key anywhere.
+
+Update:
+
+```text
+.mypla-foundation-progress.txt
+```
+
+and clearly create a new section for AI integration progress.
+
+Record:
+
+* provider
+* model
+* implementation status
+* tests
+* verification status
+* known limitations
+
+Do not claim the AI works unless an actual API request succeeds.
+
+## Definition of done
+
+Phase 1 is complete when this works:
+
+```text
+"I have a physics lab due Thursday. It will probably take me two hours and it is pretty important."
+                    ↓
+                 Nemotron
+                    ↓
+          structured task draft
+                    ↓
+             TaskDraftReview
+                    ↓
+              User approves
+                    ↓
+              Python validates
+                    ↓
+             PriorityEngine
+                    ↓
+                Supabase
+```
+
+Nothing beyond this phase should be implemented yet.

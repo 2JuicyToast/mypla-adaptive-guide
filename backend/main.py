@@ -27,6 +27,11 @@ from backend.models import (
     utc_now,
 )
 from backend.services.ai_service import AIService, export_for_myrpg
+from backend.services.ai_errors import (
+    AIConfigurationError,
+    AIProviderUnavailableError,
+    InvalidTaskDraftError,
+)
 from backend.services.assumptions import AssumptionService
 from backend.services.priority_engine import PriorityEngine
 from backend.services.proposals import ProposalService
@@ -151,18 +156,35 @@ class ReorderRequest(BaseModel):
     taskIds: list[str] = Field(min_length=1)
 
 
+class TaskParseRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=2000)
+
+
 @app.post("/api/tasks/reorder", response_model=list[Task])
 def reorder_tasks(data: ReorderRequest, context: Context) -> list[Task]:
     return context.tasks.reorder_tasks(data.taskIds)
 
 
 @app.post("/api/tasks/parse")
-def parse_task(payload: dict[str, str]) -> dict[str, Any]:
-    """Return an uncommitted deterministic draft; natural-language AI is not enabled."""
-    text = payload.get("text", "").strip()
-    if not text:
-        raise HTTPException(status_code=422, detail="Task text is required.")
-    result = ai_service.parse_task(text)
+def parse_task(payload: TaskParseRequest, context: Context) -> dict[str, Any]:
+    """Return an authenticated, validated draft without saving it."""
+    try:
+        result = ai_service.parse_task(payload.text)
+    except AIConfigurationError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Natural-language task parsing is not configured. Use guided task entry instead.",
+        ) from exc
+    except AIProviderUnavailableError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="The task parser is temporarily unavailable. Your task was not saved; try again or use guided task entry.",
+        ) from exc
+    except InvalidTaskDraftError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+        ) from exc
     return {
         "draft": result["draft"].model_dump(by_alias=True, mode="json"),
         "message": result["message"],

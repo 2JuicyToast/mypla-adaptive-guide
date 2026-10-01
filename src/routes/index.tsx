@@ -58,7 +58,13 @@ function HomeDashboard() {
     if (!draft) return;
     setSavingDraft(true);
     try {
-      const task = await addTask(draft);
+      const task = await addTask({
+        ...draft,
+        name: draft.name.trim(),
+        actions: (draft.actions ?? [])
+          .filter((action) => action.label.trim())
+          .map((action) => ({ ...action, label: action.label.trim() })),
+      });
       setDraft(null);
       setNotice(`Added "${task.name}" to your plan.`);
     } catch (error) {
@@ -165,25 +171,30 @@ function HomeDashboard() {
                 actions: taskDraft.firstAction ? [{ label: taskDraft.firstAction }] : [],
               });
             }}
-            onSubmitNaturalLanguage={(text) => {
-              void parseTask(text).then(
-                (result) => {
-                  setDraft(result.draft);
-                  setNotice(result.message);
-                },
-                (error: unknown) =>
-                  setNotice(
-                    error instanceof Error
-                      ? error.message
-                      : "The planning draft could not be prepared.",
-                  ),
-              );
+            onSubmitNaturalLanguage={async (text) => {
+              setNotice(null);
+              try {
+                const result = await parseTask(text);
+                setDraft(result.draft);
+                setNotice(result.message);
+                return true;
+              } catch (error) {
+                setNotice(
+                  error instanceof Error
+                    ? error.message
+                    : "The planning draft could not be prepared.",
+                );
+                return false;
+              }
             }}
           />
           {draft ? (
             <TaskDraftReview
               draft={draft}
               saving={savingDraft}
+              onChange={(patch) =>
+                setDraft((current) => (current ? { ...current, ...patch } : current))
+              }
               onConfirm={() => void confirmDraft()}
               onCancel={() => setDraft(null)}
             />

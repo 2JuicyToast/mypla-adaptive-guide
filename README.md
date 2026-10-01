@@ -7,12 +7,12 @@ The Replit repository root is the MyPLA project root. The existing frontend was 
 ## Current foundation
 
 - **Frontend:** React 19, TanStack Start/Router, Vite, and Tailwind CSS.
-- **Backend:** Python 3.11, FastAPI, Pydantic, and modular deterministic services in `backend/`.
+- **Backend:** Python 3.11, FastAPI, Pydantic, deterministic planning services, and a provider-neutral task parsing service in `backend/`.
 - **Storage:** a temporary in-memory development repository when Supabase is not configured; a user-scoped Supabase Data API repository when it is.
 - **Database:** the initial relational schema and `auth.uid()`-scoped row-level security policies are in `supabase/migrations/`.
 - **Tests:** deterministic service tests are in `tests/`.
 
-No LLM, automatic priority learning, MyRPG mechanics, or automatic assistant commits are implemented.
+Natural-language task parsing is the first limited LLM feature: it sends only the task-intake text to OpenRouter and returns an unsaved, schema-validated draft. Users review/edit it before saving. It does not add chat memory, embeddings, tool use, agent loops, autonomous behavior, or automatic assistant commits. Python's `PriorityEngine` remains the authority for final priority scores.
 
 ## Run on Replit
 
@@ -75,6 +75,12 @@ Apply `supabase/migrations/0001_mypla_foundation.sql` to the dedicated MyPLA Sup
 - `SUPABASE_PUBLISHABLE_KEY`
 
 Both are required to switch the backend out of demo memory mode. Supabase-backed requests require a valid signed-in user's Bearer token; the backend verifies the token and passes it to PostgREST so the database policies remain authoritative. The React frontend includes Supabase sign-up, sign-in, sign-out, and session handling. Without the Supabase settings, the backend remains in temporary memory mode.
+
+## OpenRouter task parsing
+
+Set `OPENROUTER_API_KEY` as a Replit Secret. The parser defaults to `nvidia/nemotron-3-super-120b-a12b:free`; `OPENROUTER_MODEL` can override the model. The key stays in FastAPI and is never sent to the browser. The authenticated `/api/tasks/parse` endpoint sends only the submitted task text to OpenRouter, requests strict JSON Schema output, and validates the result with `TaskCreate`. It returns `saved: false`; only the existing task-create endpoint writes data after the user confirms the editable review.
+
+Parsing fails with a clear response if the key is missing, the provider is unavailable/rate-limited, or the returned draft fails validation. Do not send confidential or sensitive details to the free model. A successful API health response does not verify the OpenRouter key or Supabase schema.
 
 Never commit `.env`; it is ignored by Git. Do not use the separate MyCommNet Supabase project or put a service-role key in frontend code.
 

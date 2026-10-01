@@ -32,7 +32,7 @@ export function GuidedTaskEntry({
   onSubmitNaturalLanguage,
   onSubmitGuided,
 }: {
-  onSubmitNaturalLanguage?: (text: string) => void;
+  onSubmitNaturalLanguage?: (text: string) => Promise<boolean>;
   onSubmitGuided?: (draft: {
     name: string;
     course: string;
@@ -44,6 +44,7 @@ export function GuidedTaskEntry({
   }) => void;
 }) {
   const [text, setText] = useState("");
+  const [parsing, setParsing] = useState(false);
   const [name, setName] = useState("");
   const [course, setCourse] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -59,8 +60,8 @@ export function GuidedTaskEntry({
         <h2 className="text-lg font-semibold">Add something to your plan</h2>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        Describe it in your own words, or fill in the details yourself. You'll see what I
-        understood before anything is saved.
+        Describe it in your own words, or fill in the details yourself. You'll see what I understood
+        before anything is saved.
       </p>
 
       <Tabs defaultValue="conversational" className="mt-4">
@@ -91,20 +92,27 @@ export function GuidedTaskEntry({
           <div className="rounded-lg border border-dashed border-proposal/40 bg-proposal-muted/40 p-3 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5 font-medium text-proposal">
               <Wand2 className="size-3.5" />
-              Placeholder
+              AI task draft
             </span>{" "}
-            — once the planning engine is connected, your sentence becomes a draft task here
-            for you to confirm or correct.
+            — only this task text is sent to OpenRouter to prepare an unsaved draft. Avoid including
+            sensitive details; you can review and edit the result before saving.
           </div>
           <Button
-            disabled={!text.trim()}
+            disabled={!text.trim() || parsing}
             onClick={() => {
-              onSubmitNaturalLanguage?.(text.trim());
-              setText("");
+              void (async () => {
+                setParsing(true);
+                try {
+                  const succeeded = await onSubmitNaturalLanguage?.(text.trim());
+                  if (succeeded !== false) setText("");
+                } finally {
+                  setParsing(false);
+                }
+              })();
             }}
           >
             <Send className="size-4" />
-            Send to assistant
+            {parsing ? "Preparing draft…" : "Prepare task draft"}
           </Button>
         </TabsContent>
 
@@ -112,11 +120,19 @@ export function GuidedTaskEntry({
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Task name</label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Problem set 4" />
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Problem set 4"
+              />
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Course (optional)</label>
-              <Input value={course} onChange={(e) => setCourse(e.target.value)} placeholder="STAT 210" />
+              <Input
+                value={course}
+                onChange={(e) => setCourse(e.target.value)}
+                placeholder="STAT 210"
+              />
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Due date</label>
