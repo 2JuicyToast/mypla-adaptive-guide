@@ -19,6 +19,12 @@ from backend.models import (
     TaskAction,
     utc_now,
 )
+from backend.services.priority_engine import PriorityEngine
+
+
+def _task_sort_key(task: Task) -> tuple[int, int, Any, str]:
+    """Keep explicit task order, then use deterministic score and stable tie-breakers."""
+    return (task.position, -task.priority_score, task.created_at, task.id)
 
 
 class MemoryRepository:
@@ -101,6 +107,9 @@ class MemoryRepository:
                 actions=[TaskAction(id="t5a1", label="Read chapter 7 and note two arguments")],
             ),
         ]
+        priority = PriorityEngine()
+        for task in examples:
+            priority.apply(task)
         self.tasks.update({task.id: task for task in examples})
         assumption = Assumption(
             id="a1",
@@ -141,7 +150,7 @@ class MemoryRepository:
         tasks = [task for task in self.tasks.values() if task.user_id == user_id]
         if status:
             tasks = [task for task in tasks if task.status == status]
-        return tasks
+        return sorted(tasks, key=_task_sort_key)
 
     def get_task(self, user_id: str, task_id: str) -> Task | None:
         task = self.tasks.get(task_id)
@@ -234,7 +243,8 @@ class SupabaseRepository:
         query = self.client.table("tasks").select("*, task_actions(*)").eq("user_id", user_id)
         if status:
             query = query.eq("status", status)
-        return [self._task_from_row(row) for row in query.execute().data]
+        tasks = [self._task_from_row(row) for row in query.execute().data]
+        return sorted(tasks, key=_task_sort_key)
 
     def get_task(self, user_id: str, task_id: str) -> Task | None:
         rows = (

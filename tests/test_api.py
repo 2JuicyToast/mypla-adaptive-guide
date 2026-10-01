@@ -16,11 +16,43 @@ def client():
     app.dependency_overrides.clear()
 
 
-def test_health_discloses_non_persistent_development_storage(client):
+def test_health_discloses_non_persistent_development_storage(client, monkeypatch):
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    monkeypatch.delenv("SUPABASE_PUBLISHABLE_KEY", raising=False)
     response = client.get("/api/health")
     assert response.status_code == 200
     assert response.json()["storageMode"] == "memory"
     assert response.json()["persistent"] is False
+
+
+def test_health_and_public_client_config_read_supabase_configuration(client, monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://mypla-test.supabase.co")
+    monkeypatch.setenv("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_test")
+
+    health = client.get("/api/health")
+    config = client.get("/api/client-config")
+
+    assert health.status_code == 200
+    assert health.json()["supabaseConfigured"] is True
+    assert health.json()["storageMode"] == "supabase"
+    assert "SUPABASE_URL" not in health.text
+    assert "SUPABASE_PUBLISHABLE_KEY" not in health.text
+    assert config.status_code == 200
+    assert config.json() == {
+        "enabled": True,
+        "url": "https://mypla-test.supabase.co",
+        "publishableKey": "sb_publishable_test",
+    }
+
+
+def test_partial_supabase_configuration_fails_clearly(client, monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://mypla-test.supabase.co")
+    monkeypatch.delenv("SUPABASE_PUBLISHABLE_KEY", raising=False)
+
+    response = client.get("/api/client-config")
+
+    assert response.status_code == 503
+    assert "Set both SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY" in response.json()["detail"]
 
 
 def test_task_api_create_complete_and_next_action(client):

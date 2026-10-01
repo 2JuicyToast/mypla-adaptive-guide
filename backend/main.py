@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+import os
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response
@@ -68,20 +69,38 @@ ai_service = AIService()
 
 
 @app.get("/health")
-def health(context: Context) -> dict[str, Any]:
+def health() -> dict[str, Any]:
+    url = os.getenv("SUPABASE_URL")
+    publishable_key = os.getenv("SUPABASE_PUBLISHABLE_KEY")
+    configured = bool(url and publishable_key)
     return {
         "status": "ok",
         "service": "mypla-api",
-        "storageMode": context.storage_mode,
-        "persistent": context.storage_mode == "supabase",
-        "supabaseConfigured": context.storage_mode == "supabase",
+        "storageMode": "supabase" if configured else "memory",
+        "persistent": configured,
+        "supabaseConfigured": configured,
         "authentication": "Supabase user token required for Supabase-backed requests",
     }
 
 
 @app.get("/api/health")
-def api_health(context: Context) -> dict[str, Any]:
-    return health(context)
+def api_health() -> dict[str, Any]:
+    return health()
+
+
+@app.get("/api/client-config")
+def supabase_client_config() -> dict[str, Any]:
+    """Provide only the public Supabase client settings needed by browser auth."""
+    url = os.getenv("SUPABASE_URL")
+    publishable_key = os.getenv("SUPABASE_PUBLISHABLE_KEY")
+    if not url and not publishable_key:
+        return {"enabled": False}
+    if not url or not publishable_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Set both SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY to enable Supabase auth.",
+        )
+    return {"enabled": True, "url": url, "publishableKey": publishable_key}
 
 
 @app.get("/api/tasks", response_model=list[Task])

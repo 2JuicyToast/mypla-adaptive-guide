@@ -1,4 +1,5 @@
 import type { AssumptionResponse, Proposal, Task, TaskAction, TaskStatus } from "@/lib/mpla-types";
+import { getSupabaseAccessToken } from "@/lib/supabase-client";
 
 export interface TaskDraft {
   name: string;
@@ -58,12 +59,17 @@ export interface ApiScheduleBlock {
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  headers.set("Content-Type", "application/json");
+  const endpoint = url.split("?")[0];
+  if (endpoint !== "/api/client-config" && endpoint !== "/api/health" && endpoint !== "/health") {
+    const accessToken = await getSupabaseAccessToken();
+    if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+  }
+
   const response = await fetch(url, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
+    headers,
   });
   if (!response.ok) {
     const body = await response.json().catch(() => null);
