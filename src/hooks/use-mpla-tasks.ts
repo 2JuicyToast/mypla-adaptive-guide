@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { mockTasks } from "@/lib/mpla-mock-data";
 import {
@@ -7,6 +7,7 @@ import {
   createTask as createTaskRequest,
   getApiHealth,
   getTasks,
+  type ApiHealth,
   type TaskDraft,
 } from "@/lib/mypla-api";
 import type { Task } from "@/lib/mpla-types";
@@ -18,46 +19,55 @@ export function useMyPlaTasks() {
   const [mode, setMode] = useState<TaskDataMode>("connecting");
   const [notice, setNotice] = useState<string | null>(null);
 
-  async function refresh() {
+  const loadTasks = useCallback(async (isActive: () => boolean = () => true) => {
+    let health: ApiHealth;
     try {
-      const [health, latestTasks] = await Promise.all([getApiHealth(), getTasks()]);
-      setTasks(latestTasks);
+      health = await getApiHealth();
+      if (!isActive()) return;
       setMode(health.storageMode);
-      setNotice(null);
     } catch (error) {
+      if (!isActive()) return;
       setMode("sample");
       setTasks(mockTasks);
       setNotice(
-        error instanceof Error
-          ? `The API is unavailable, so sample tasks are shown. ${error.message}`
-          : "The API is unavailable, so sample tasks are shown.",
+        `The API is unavailable, so sample tasks are shown. ${
+          error instanceof Error ? error.message : "The request failed."
+        }`,
+      );
+      return;
+    }
+
+    try {
+      const latestTasks = await getTasks();
+      if (!isActive()) return;
+      setTasks(latestTasks);
+      setNotice(null);
+    } catch (error) {
+      if (!isActive()) return;
+      setTasks(mockTasks);
+      setNotice(
+        health.persistent
+          ? `MyPLA API storage mode: supabase; persistent: true. Saved tasks could not be loaded. ${
+              error instanceof Error ? error.message : "The request failed."
+            }`
+          : `The API is unavailable, so sample tasks are shown. ${
+              error instanceof Error ? error.message : "The request failed."
+            }`,
       );
     }
+  }, []);
+
+  async function refresh() {
+    await loadTasks();
   }
 
   useEffect(() => {
     let active = true;
-    void Promise.all([getApiHealth(), getTasks()])
-      .then(([health, latestTasks]) => {
-        if (!active) return;
-        setTasks(latestTasks);
-        setMode(health.storageMode);
-        setNotice(null);
-      })
-      .catch((error: unknown) => {
-        if (!active) return;
-        setMode("sample");
-        setTasks(mockTasks);
-        setNotice(
-          error instanceof Error
-            ? `The API is unavailable, so sample tasks are shown. ${error.message}`
-            : "The API is unavailable, so sample tasks are shown.",
-        );
-      });
+    void loadTasks(() => active);
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadTasks]);
 
   async function addTask(draft: TaskDraft) {
     const task = await createTaskRequest(draft);

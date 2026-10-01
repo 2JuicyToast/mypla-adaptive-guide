@@ -22,7 +22,7 @@ For local development:
 
 ```sh
 bun install --frozen-lockfile
-python3 -m pytest
+uv run --frozen python -m pytest
 bun run build
 ```
 

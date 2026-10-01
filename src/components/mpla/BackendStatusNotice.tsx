@@ -8,15 +8,10 @@ export function BackendStatusNotice({
   notice?: string | null;
 }) {
   if (notice) {
-    const connected = mode === "memory" || mode === "supabase";
     return (
       <p
-        role={mode === "sample" ? "alert" : "status"}
-        className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
-          connected
-            ? "border-primary/20 bg-primary/5 text-foreground"
-            : "border-destructive/30 bg-destructive/5 text-foreground"
-        }`}
+        role="alert"
+        className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-foreground"
       >
         {notice}
       </p>
@@ -37,7 +32,7 @@ export function BackendStatusNotice({
   const connected = mode === "memory" || mode === "supabase";
   const text =
     mode === "supabase"
-      ? "Connected to your user-scoped Supabase database."
+      ? "Connected to your user-scoped Supabase database. MyPLA API storage mode: supabase; persistent: true."
       : mode === "memory"
         ? "Using temporary demo data in memory. Sample tasks are not persistent; changes reset when the API restarts."
         : "The API is unavailable. Showing read-only sample tasks; these are not your saved tasks.";

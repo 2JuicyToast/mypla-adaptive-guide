@@ -35,6 +35,7 @@ def test_health_and_public_client_config_read_supabase_configuration(client, mon
     assert health.status_code == 200
     assert health.json()["supabaseConfigured"] is True
     assert health.json()["storageMode"] == "supabase"
+    assert health.json()["persistent"] is True
     assert "SUPABASE_URL" not in health.text
     assert "SUPABASE_PUBLISHABLE_KEY" not in health.text
     assert config.status_code == 200
