@@ -3,6 +3,7 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordStrengthMeter } from "@/components/mpla/PasswordStrengthMeter";
 import { MyPlaAuthContext, useMyPlaAuth } from "@/hooks/use-mypla-auth";
 import { getSupabaseClient } from "@/lib/supabase-client";
 
@@ -176,6 +177,7 @@ function MyPlaAuthScreen() {
 
   function changeMode(nextMode: "sign-in" | "sign-up") {
     setMode(nextMode);
+    setPassword("");
     setError(null);
     setNotice(null);
   }
@@ -220,9 +222,11 @@ function MyPlaAuthScreen() {
               minLength={6}
               required
               value={password}
+              aria-describedby={mode === "sign-up" ? "mypla-password-strength" : undefined}
               onChange={(event) => setPassword(event.target.value)}
             />
           </div>
+          {mode === "sign-up" ? <PasswordStrengthMeter password={password} /> : null}
           {error ? (
             <p
               role="alert"

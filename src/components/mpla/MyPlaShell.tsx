@@ -12,6 +12,7 @@ const navItems = [
   { to: "/explore", label: "Explore" },
   { to: "/schedule", label: "Schedule" },
   { to: "/reflect", label: "Reflect" },
+  { to: "/profile", label: "Profile" },
 ] as const;
 
 /** App frame: brand, primary navigation, and the always-available quick action. */

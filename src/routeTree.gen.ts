@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CurrentRouteImport } from './routes/current'
 import { Route as ExploreRouteImport } from './routes/explore'
+import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as ReflectRouteImport } from './routes/reflect'
 import { Route as ScheduleRouteImport } from './routes/schedule'
 import { Route as UpcomingRouteImport } from './routes/upcoming'
@@ -29,6 +30,11 @@ const CurrentRoute = CurrentRouteImport.update({
 const ExploreRoute = ExploreRouteImport.update({
   id: '/explore',
   path: '/explore',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReflectRoute = ReflectRouteImport.update({
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/current': typeof CurrentRoute
   '/explore': typeof ExploreRoute
+  '/profile': typeof ProfileRoute
   '/reflect': typeof ReflectRoute
   '/schedule': typeof ScheduleRoute
   '/upcoming': typeof UpcomingRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/current': typeof CurrentRoute
   '/explore': typeof ExploreRoute
+  '/profile': typeof ProfileRoute
   '/reflect': typeof ReflectRoute
   '/schedule': typeof ScheduleRoute
   '/upcoming': typeof UpcomingRoute
@@ -68,6 +76,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/current': typeof CurrentRoute
   '/explore': typeof ExploreRoute
+  '/profile': typeof ProfileRoute
   '/reflect': typeof ReflectRoute
   '/schedule': typeof ScheduleRoute
   '/upcoming': typeof UpcomingRoute
@@ -75,14 +84,28 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/current' | '/explore' | '/reflect' | '/schedule' | '/upcoming'
+    | '/'
+    | '/current'
+    | '/explore'
+    | '/profile'
+    | '/reflect'
+    | '/schedule'
+    | '/upcoming'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/current' | '/explore' | '/reflect' | '/schedule' | '/upcoming'
+  to:
+    | '/'
+    | '/current'
+    | '/explore'
+    | '/profile'
+    | '/reflect'
+    | '/schedule'
+    | '/upcoming'
   id:
     | '__root__'
     | '/'
     | '/current'
     | '/explore'
+    | '/profile'
     | '/reflect'
     | '/schedule'
     | '/upcoming'
@@ -92,6 +115,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CurrentRoute: typeof CurrentRoute
   ExploreRoute: typeof ExploreRoute
+  ProfileRoute: typeof ProfileRoute
   ReflectRoute: typeof ReflectRoute
   ScheduleRoute: typeof ScheduleRoute
   UpcomingRoute: typeof UpcomingRoute
@@ -118,6 +142,13 @@ declare module '@tanstack/react-router' {
       path: '/explore'
       fullPath: '/explore'
       preLoaderRoute: typeof ExploreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reflect': {
@@ -148,6 +179,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CurrentRoute: CurrentRoute,
   ExploreRoute: ExploreRoute,
+  ProfileRoute: ProfileRoute,
   ReflectRoute: ReflectRoute,
   ScheduleRoute: ScheduleRoute,
   UpcomingRoute: UpcomingRoute,
