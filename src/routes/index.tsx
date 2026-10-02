@@ -23,6 +23,7 @@ import {
   submitStuck,
   type TaskDraft,
 } from "@/lib/mypla-api";
+import type { TaskParseStatus } from "@/lib/task-parse-status";
 import type { Task } from "@/lib/mpla-types";
 
 export const Route = createFileRoute("/")({
@@ -50,6 +51,7 @@ function HomeDashboard() {
   const [assumptionOpen, setAssumptionOpen] = useState(false);
   const [draft, setDraft] = useState<TaskDraft | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
+  const [parseStatus, setParseStatus] = useState<TaskParseStatus>("idle");
   const { tasks, mode, notice, setNotice, addTask, finishTask, finishAction } = useMyPlaTasks();
   const planningData = useMyPlaPlanningData();
   const current = tasks.filter((task) => task.status === "current");
@@ -66,6 +68,7 @@ function HomeDashboard() {
           .map((action) => ({ ...action, label: action.label.trim() })),
       });
       setDraft(null);
+      setParseStatus("idle");
       setNotice(`Added "${task.name}" to your plan.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "The task could not be saved.");
@@ -163,6 +166,11 @@ function HomeDashboard() {
           </section>
 
           <GuidedTaskEntry
+            parseStatus={parseStatus}
+            onParseStatusChange={(status) => {
+              setParseStatus(status);
+              if (status === "preparing") setDraft(null);
+            }}
             onSubmitGuided={(taskDraft) => {
               setNotice(null);
               setDraft({
@@ -171,21 +179,11 @@ function HomeDashboard() {
                 actions: taskDraft.firstAction ? [{ label: taskDraft.firstAction }] : [],
               });
             }}
-            onSubmitNaturalLanguage={async (text) => {
+            onSubmitNaturalLanguage={async (text, signal) => {
               setNotice(null);
-              try {
-                const result = await parseTask(text);
-                setDraft(result.draft);
-                setNotice(result.message);
-                return true;
-              } catch (error) {
-                setNotice(
-                  error instanceof Error
-                    ? error.message
-                    : "The planning draft could not be prepared.",
-                );
-                return false;
-              }
+              const result = await parseTask(text, signal);
+              if (signal.aborted) return;
+              setDraft(result.draft);
             }}
           />
           {draft ? (
@@ -196,7 +194,10 @@ function HomeDashboard() {
                 setDraft((current) => (current ? { ...current, ...patch } : current))
               }
               onConfirm={() => void confirmDraft()}
-              onCancel={() => setDraft(null)}
+              onCancel={() => {
+                setDraft(null);
+                setParseStatus("idle");
+              }}
             />
           ) : null}
         </div>

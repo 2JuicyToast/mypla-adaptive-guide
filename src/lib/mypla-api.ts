@@ -1,5 +1,6 @@
 import type { AssumptionResponse, Proposal, Task, TaskAction, TaskStatus } from "@/lib/mpla-types";
 import { getSupabaseAccessToken } from "@/lib/supabase-client";
+import { ApiRequestError } from "./api-error";
 
 export interface TaskDraft {
   name: string;
@@ -84,7 +85,10 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     const body = await response.json().catch(() => null);
     const detail = body?.detail;
-    throw new Error(typeof detail === "string" ? detail : `Request failed (${response.status}).`);
+    throw new ApiRequestError(
+      response.status,
+      typeof detail === "string" ? detail : `Request failed (${response.status}).`,
+    );
   }
   return response.json() as Promise<T>;
 }
@@ -140,9 +144,10 @@ export function completeTaskAction(taskId: string, actionId: string) {
   );
 }
 
-export function parseTask(text: string) {
+export function parseTask(text: string, signal?: AbortSignal) {
   return request<{ draft: TaskDraft; message: string; saved: false }>("/api/tasks/parse", {
     method: "POST",
+    signal,
     body: JSON.stringify({ text }),
   });
 }

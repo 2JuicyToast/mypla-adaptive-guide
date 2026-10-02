@@ -37,10 +37,14 @@ IMPLEMENTED
 - The existing provider-neutral parser sends only submitted task-intake text plus controlled parsing instructions to OpenRouter. The Python service validates returned drafts against `TaskCreate`; the endpoint marks them `saved: false`. The React review step is the only confirmation path, and task creation still runs through Python's `PriorityEngine`.
 - Health reports `supabaseConfigured` and `openRouterConfigured` separately. Missing OpenRouter configuration and provider outages return safe messages; HTTP rate limits return a distinct 429 response. Guided task entry remains available.
 - The API key stays server-side as a Replit Secret and is not returned by `/api/client-config`.
+- Task entry now shows an accessible processing panel during the request, then a draft-ready, unavailable, or rate-limited state based on observable application outcomes. It does not simulate hidden model reasoning or claim intermediate stages.
+- Failure states use friendly messages and offer retry or guided entry. The original text remains available for retry. Switching to guided entry aborts the pending parse, preventing a late AI response from replacing a guided draft.
+- Draft-ready copy points to the existing editable review and reiterates that nothing is saved until the user chooses “Add to my plan.”
 
 TESTED WITH MOCKS
 - `uv run --frozen --no-sync python -m pytest -q`: 35 passed. Coverage includes strict structured output, task-text-only privacy boundary, malformed/invalid drafts, missing configuration, safe provider errors, distinct rate limits, no-save parsing, and Python-owned priority calculation after task creation.
-- `bun run build`: PASS. The build reports an existing large-chunk advisory; the test run reports a Starlette/httpx deprecation warning.
+- `bun test src/lib/task-parse-status.test.ts`: 2 passed. Confirms rate-limit errors receive a distinct UI state while other API and network failures remain unavailable.
+- `bun run build`: PASS. The build reports an existing large-chunk advisory; the Python test run reports a Starlette/httpx deprecation warning.
 
 VERIFIED AGAINST THE REAL API
 - On 2026-10-02, one synthetic physics-lab request reached the configured OpenRouter model through the FastAPI parse handler and returned HTTP 200 with provider `openrouter`, a Thursday 2026-10-08 deadline, a 120-minute estimate, and `saved: false`. The final request settings retain the same 4,096-token, minimal-reasoning configuration that produced that draft.
@@ -49,6 +53,7 @@ VERIFIED AGAINST THE REAL API
 STILL UNVERIFIED
 - The other three supplied synthetic prompts repeatedly returned the safe unavailable response; provider metadata showed completion-limit truncation. Raising the limit to 8,192 did not resolve this and the final batch timed out after two unavailable responses, so the request limit was restored to 4,096.
 - Signed-in `TaskDraftReview` confirmation, creation through the authenticated task API, and the resulting live Supabase write were not performed. No user explicitly confirmed saving a synthetic task.
+- The signed-in loading, draft-ready, failure, and rate-limit states were not exercised in a browser. The available preview remains at sign-in, and this project has no existing frontend component-test harness; state classification has a Bun unit test and the flow's save gate is covered by Python API tests.
 
 KNOWN LIMITATIONS
 - The configured model can exhaust its output allowance before returning valid structured JSON, even with minimal reasoning and the current response schema. The API rejects such output without saving it; the guided entry tab is the fallback.

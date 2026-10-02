@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { MessageSquarePlus, Send, Wand2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { taskParseFailureStatus, type TaskParseStatus } from "@/lib/task-parse-status";
 import type { EnergyLevel, Priority } from "@/lib/mpla-types";
+import { TaskParseStatusCard } from "./TaskParseStatusCard";
 
 const conversationalPrompts = [
   "Essay draft for HIST 145 by Friday, maybe two hours",
@@ -31,8 +33,10 @@ const conversationalPrompts = [
 export function GuidedTaskEntry({
   onSubmitNaturalLanguage,
   onSubmitGuided,
+  parseStatus = "idle",
+  onParseStatusChange,
 }: {
-  onSubmitNaturalLanguage?: (text: string) => Promise<boolean>;
+  onSubmitNaturalLanguage?: (text: string, signal: AbortSignal) => Promise<void>;
   onSubmitGuided?: (draft: {
     name: string;
     course: string;
@@ -42,9 +46,13 @@ export function GuidedTaskEntry({
     energyRequired: EnergyLevel;
     firstAction: string;
   }) => void;
+  parseStatus?: TaskParseStatus;
+  onParseStatusChange?: (status: TaskParseStatus) => void;
 }) {
   const [text, setText] = useState("");
   const [parsing, setParsing] = useState(false);
+  const [activeTab, setActiveTab] = useState("conversational");
+  const activeRequest = useRef<AbortController | null>(null);
   const [name, setName] = useState("");
   const [course, setCourse] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -52,6 +60,45 @@ export function GuidedTaskEntry({
   const [priority, setPriority] = useState<Priority>("medium");
   const [energy, setEnergy] = useState<EnergyLevel>("medium");
   const [firstAction, setFirstAction] = useState("");
+
+  async function prepareDraft(value = text) {
+    const taskText = value.trim();
+    if (!taskText || activeRequest.current) return;
+    if (!onSubmitNaturalLanguage) {
+      onParseStatusChange?.("unavailable");
+      return;
+    }
+
+    const controller = new AbortController();
+    activeRequest.current = controller;
+    setParsing(true);
+    onParseStatusChange?.("preparing");
+
+    try {
+      await onSubmitNaturalLanguage(taskText, controller.signal);
+      if (controller.signal.aborted) return;
+      setText("");
+      onParseStatusChange?.("ready");
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      onParseStatusChange?.(taskParseFailureStatus(error));
+    } finally {
+      if (activeRequest.current === controller) {
+        activeRequest.current = null;
+        setParsing(false);
+      }
+    }
+  }
+
+  function changeTab(value: string) {
+    if (value === "guided" && parsing) {
+      activeRequest.current?.abort();
+      activeRequest.current = null;
+      setParsing(false);
+      onParseStatusChange?.("idle");
+    }
+    setActiveTab(value);
+  }
 
   return (
     <section className="surface-panel p-5">
@@ -64,7 +111,7 @@ export function GuidedTaskEntry({
         before anything is saved.
       </p>
 
-      <Tabs defaultValue="conversational" className="mt-4">
+      <Tabs value={activeTab} onValueChange={changeTab} className="mt-4">
         <TabsList>
           <TabsTrigger value="conversational">Just tell me</TabsTrigger>
           <TabsTrigger value="guided">Fill in details</TabsTrigger>
@@ -73,7 +120,11 @@ export function GuidedTaskEntry({
         <TabsContent value="conversational" className="mt-4 space-y-3">
           <Textarea
             value={text}
-            onChange={(event) => setText(event.target.value)}
+            disabled={parsing}
+            onChange={(event) => {
+              setText(event.target.value);
+              onParseStatusChange?.("idle");
+            }}
             rows={3}
             placeholder="e.g. I need to finish my stats problem set before Friday, it usually takes me about an hour and a half"
           />
@@ -82,8 +133,12 @@ export function GuidedTaskEntry({
               <button
                 key={prompt}
                 type="button"
-                onClick={() => setText(prompt)}
-                className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted"
+                disabled={parsing}
+                onClick={() => {
+                  setText(prompt);
+                  onParseStatusChange?.("idle");
+                }}
+                className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
               >
                 {prompt}
               </button>
@@ -99,17 +154,7 @@ export function GuidedTaskEntry({
           </div>
           <Button
             disabled={!text.trim() || parsing}
-            onClick={() => {
-              void (async () => {
-                setParsing(true);
-                try {
-                  const succeeded = await onSubmitNaturalLanguage?.(text.trim());
-                  if (succeeded !== false) setText("");
-                } finally {
-                  setParsing(false);
-                }
-              })();
-            }}
+            onClick={() => void prepareDraft()}
           >
             <Send className="size-4" />
             {parsing ? "Preparing draft…" : "Prepare task draft"}
@@ -185,7 +230,8 @@ export function GuidedTaskEntry({
           </div>
           <Button
             disabled={!name.trim()}
-            onClick={() =>
+            onClick={() => {
+              onParseStatusChange?.("idle");
               onSubmitGuided?.({
                 name: name.trim(),
                 course: course.trim(),
@@ -194,13 +240,18 @@ export function GuidedTaskEntry({
                 priority,
                 energyRequired: energy,
                 firstAction: firstAction.trim(),
-              })
-            }
+              });
+            }}
           >
             Review this task
           </Button>
         </TabsContent>
       </Tabs>
+      <TaskParseStatusCard
+        status={parseStatus}
+        onRetry={() => void prepareDraft()}
+        onUseGuidedEntry={() => changeTab("guided")}
+      />
     </section>
   );
 }
