@@ -131,7 +131,8 @@ class OpenRouterTaskParser:
                 },
             },
             "provider": {"require_parameters": True},
-            "max_tokens": 8192,
+            "reasoning": {"effort": "minimal", "exclude": True},
+            "max_tokens": 4096,
             "temperature": 0.1,
         }
 

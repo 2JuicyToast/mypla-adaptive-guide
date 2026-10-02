@@ -1,0 +1,1 @@
+- [OpenRouter output limits](openrouter-output-limits.md) — Nemotron may exhaust its completion budget before returning schema-valid task JSON; preserve a safe unsaved failure path.

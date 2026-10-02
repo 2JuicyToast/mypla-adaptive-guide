@@ -1,5 +1,5 @@
 CURRENT STATUS
-The requested foundation fixes are implemented without replacing the existing React → FastAPI → deterministic planning → Supabase architecture. The current preview is running in temporary memory/demo mode, so Supabase sign-out/re-login and live Supabase writes were not verified during this pass. No secrets were read or copied.
+The requested foundation fixes are implemented without replacing the existing React → FastAPI → deterministic planning → Supabase architecture. Supabase and OpenRouter settings are present in the runtime, as reported by API health. This confirms configuration only; live authenticated Supabase reads and writes were not verified. No secrets were read, copied, or logged.
 
 This hidden dotfile is a manually maintained project status report, not private storage. Do not put secrets or personal content in it.
 
@@ -16,17 +16,40 @@ VERIFIED
 - Python tests: PASS — `python3 -m pytest -q`, 24 passed. One existing Starlette/httpx deprecation warning remains.
 - Edited frontend files: ESLint passed with zero errors; one Fast Refresh warning remains for the existing exported task helper.
 - `git diff --check`: PASS.
-- `Start application` workflow: RUNNING. The home page rendered in the preview with no browser console errors. The visible banner and API responses identify the current runtime as temporary memory mode.
+- `Start application` workflow: RUNNING. The preview shows the sign-in page because the browser has no signed-in test user. API health reports Supabase configured. A pre-existing React hydration warning appears in the browser console.
 - The earlier project record documents a successful authenticated Supabase task create → page-reload read → completion flow. That earlier result was not repeated during this pass.
 
 UNVERIFIED
-- Live Supabase sign-out/re-login, access-token refresh, user-data reload, task-action persistence, and four-answer reflection persistence. The current app preview reports memory mode, so these Supabase paths could not be exercised here.
+- Live Supabase sign-out/re-login, access-token refresh, user-data reload, task-action persistence, and four-answer reflection persistence. The preview has no signed-in test user; configured mode does not verify that the schema migration is applied or that database access succeeds.
 - Responsive layouts beyond the captured 1280×720 home preview.
 - Full-project ESLint. `bun run lint` timed out while scanning dependency/cache files, and `bunx eslint src` also reported existing Prettier violations in untouched source files. Scoped ESLint on the edited frontend files passed with one Fast Refresh warning.
 
 IMPORTANT NOTES
 - Preserve the architecture: React → FastAPI → deterministic MyPLA logic → Supabase.
-- Do not add an LLM until the foundation acceptance flow is complete.
+- Keep Phase 1 limited to context-free task parsing. Do not add Phase 2 AI features.
 - Use the dedicated MyPLA Supabase project, not MyCommNet. Never put credentials in Git or frontend source, and do not use a service-role key.
 - Supabase-backed requests require a signed-in user's Bearer token; the backend derives identity from the verified token, not a submitted `user_id`.
 - Without Supabase configuration, the backend uses temporary in-memory demo storage; data resets when the API restarts.
+
+AI TASK PARSING — PHASE 1
+
+IMPLEMENTED
+- The existing provider-neutral parser sends only submitted task-intake text plus controlled parsing instructions to OpenRouter. The Python service validates returned drafts against `TaskCreate`; the endpoint marks them `saved: false`. The React review step is the only confirmation path, and task creation still runs through Python's `PriorityEngine`.
+- Health reports `supabaseConfigured` and `openRouterConfigured` separately. Missing OpenRouter configuration and provider outages return safe messages; HTTP rate limits return a distinct 429 response. Guided task entry remains available.
+- The API key stays server-side as a Replit Secret and is not returned by `/api/client-config`.
+
+TESTED WITH MOCKS
+- `uv run --frozen --no-sync python -m pytest -q`: 35 passed. Coverage includes strict structured output, task-text-only privacy boundary, malformed/invalid drafts, missing configuration, safe provider errors, distinct rate limits, no-save parsing, and Python-owned priority calculation after task creation.
+- `bun run build`: PASS. The build reports an existing large-chunk advisory; the test run reports a Starlette/httpx deprecation warning.
+
+VERIFIED AGAINST THE REAL API
+- On 2026-10-02, one synthetic physics-lab request reached the configured OpenRouter model through the FastAPI parse handler and returned HTTP 200 with provider `openrouter`, a Thursday 2026-10-08 deadline, a 120-minute estimate, and `saved: false`. The final request settings retain the same 4,096-token, minimal-reasoning configuration that produced that draft.
+- No task was saved. The real browser flow was not exercised because the preview only showed sign-in.
+
+STILL UNVERIFIED
+- The other three supplied synthetic prompts repeatedly returned the safe unavailable response; provider metadata showed completion-limit truncation. Raising the limit to 8,192 did not resolve this and the final batch timed out after two unavailable responses, so the request limit was restored to 4,096.
+- Signed-in `TaskDraftReview` confirmation, creation through the authenticated task API, and the resulting live Supabase write were not performed. No user explicitly confirmed saving a synthetic task.
+
+KNOWN LIMITATIONS
+- The configured model can exhaust its output allowance before returning valid structured JSON, even with minimal reasoning and the current response schema. The API rejects such output without saving it; the guided entry tab is the fallback.
+- A successful health response confirms environment configuration, not provider availability, schema readiness, or persistent database behavior.
