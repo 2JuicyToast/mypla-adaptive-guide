@@ -22,29 +22,105 @@ TASK_DRAFT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
     "properties": {
-        "name": {"type": "string", "minLength": 1, "maxLength": 240},
-        "description": {"type": ["string", "null"]},
-        "course": {"type": ["string", "null"]},
-        "dueDate": {"type": ["string", "null"], "format": "date"},
-        "estimatedMinutes": {"type": "integer", "minimum": 0, "maximum": 10080},
-        "priority": {"type": "string", "enum": ["high", "medium", "low"]},
-        "energyRequired": {"type": "string", "enum": ["high", "medium", "low"]},
-        "category": {"type": ["string", "null"]},
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240,
+            "description": (
+                "A concise human-readable task title, normally 2–8 words. Name the central task; "
+                "never repeat the full user sentence, conversational request, deadline, duration, "
+                "importance, or explanation."
+            ),
+        },
+        "description": {
+            "type": ["string", "null"],
+            "description": (
+                "Brief supporting context not already represented by another structured field. "
+                "Use null when no useful context remains; do not copy the full user input."
+            ),
+        },
+        "course": {
+            "type": ["string", "null"],
+            "description": (
+                "The course name or code only when explicitly identified or clearly named by the "
+                "user; otherwise null. Never infer a course from unrelated context."
+            ),
+        },
+        "dueDate": {
+            "type": ["string", "null"],
+            "format": "date",
+            "description": (
+                "An ISO YYYY-MM-DD deadline supported by the user's text. Resolve relative dates "
+                "from today's date and named weekdays to the next occurrence; use null if unclear."
+            ),
+        },
+        "estimatedMinutes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10080,
+            "description": (
+                "Estimated duration in minutes. Preserve explicit durations; when omitted, use a "
+                "reasonable estimate. Never put the duration in the task name."
+            ),
+        },
+        "priority": {
+            "type": "string",
+            "enum": ["high", "medium", "low"],
+            "description": (
+                "Importance only: high for explicitly very, really, or pretty important/high "
+                "priority; low for explicitly low priority/not urgent; otherwise medium. Do not "
+                "calculate the final numeric priority score."
+            ),
+        },
+        "energyRequired": {
+            "type": "string",
+            "enum": ["high", "medium", "low"],
+            "description": (
+                "Energy or difficulty requirement only when explicitly stated; otherwise medium."
+            ),
+        },
+        "category": {
+            "type": ["string", "null"],
+            "description": (
+                "A normalized task type when clearly expressed (for example Lab, Essay, Quiz, or "
+                "Assignment); otherwise null. Do not invent a category."
+            ),
+        },
         "actions": {
             "type": "array",
             "maxItems": 1,
+            "description": (
+                "Zero or one useful concrete first step, not a restatement of the user's request. "
+                "Use an empty array if no useful first step is supported."
+            ),
             "items": {
                 "type": "object",
                 "additionalProperties": False,
                 "properties": {
-                    "label": {"type": "string", "minLength": 1, "maxLength": 300},
-                    "description": {"type": ["string", "null"]},
-                    "estimatedMinutes": {"type": ["integer", "null"], "minimum": 0},
+                    "label": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300,
+                        "description": "A short, actionable first step supported by the task details.",
+                    },
+                    "description": {
+                        "type": ["string", "null"],
+                        "description": "Optional details for this step; null when none are useful.",
+                    },
+                    "estimatedMinutes": {
+                        "type": ["integer", "null"],
+                        "minimum": 0,
+                        "description": "Optional step duration in minutes; null if not known.",
+                    },
                     "energyRequired": {
                         "type": ["string", "null"],
                         "enum": ["high", "medium", "low", None],
+                        "description": "Optional energy level for the step; null if not known.",
                     },
-                    "parentActionId": {"type": ["string", "null"]},
+                    "parentActionId": {
+                        "type": ["string", "null"],
+                        "description": "Always null for this single initial action.",
+                    },
                 },
                 "required": [
                     "label",
@@ -105,17 +181,21 @@ class OpenRouterTaskParser:
             or DEFAULT_OPENROUTER_MODEL
         ).strip()
         today = date.today().isoformat()
-        system_prompt = (
-            "You create an unsaved MyPLA task draft from the user's task-intake text. "
-            f"Today's date is {today}; use it only to resolve clearly stated relative deadlines. "
-            "Extract only information explicitly supported by the text. Return null for a course "
-            "or category unless it is stated. If a deadline is unclear, return null. A date derived "
-            "from a named weekday must fall on that weekday; if unsure, return null. Estimate a "
-            "reasonable duration when omitted. Use medium priority and medium energy when importance "
-            "or energy is not stated. Priority is only an importance input; do not calculate a "
-            "priority score. Add at most one short first action, only when useful. Do not make a "
-            "plan, create or modify data, or request or infer account context."
-        )
+        system_prompt = f"""You convert the user's task-intake text into one clear, unsaved MyPLA task draft.
+Today's date is {today}. Use it only to resolve deadlines stated in the input.
+
+Understand the task and extract its fields; do not copy the whole sentence into the task name or description.
+- name: Give a concise title, normally 2–8 words, centered on the task. Remove conversational wording (such as "I need to", "I have to", "I should", or "Can you help me"), deadlines, duration, importance, and extra explanation. Examples: "I need to finish my physics lab by Thursday" → "Physics lab"; "I have to study chapters 4 through 6 for biology" → "Study biology chapters 4–6"; "I need to write my English essay before Friday" → "English essay".
+- description: Include only useful supporting context left over after filling structured fields. Use null when none remains. Never repeat the full input.
+- course: Include a course only when the user explicitly identifies or clearly names it (for example "Physics" or "STAT 210"). "Homework for class" does not identify a course.
+- category: Use a normalized task type only when clear, such as Lab, Essay, Quiz, or Assignment. Otherwise return null.
+- dueDate: Return an ISO date for a stated deadline. Resolve relative dates from today's date. A named weekday is the next occurrence of that weekday. Return null when the date is genuinely unclear; do not put the deadline in the name.
+- estimatedMinutes: Preserve explicit durations (two hours = 120; 45 minutes = 45). If omitted, estimate a reasonable duration, including for phrases like "all afternoon". Do not put duration in the name.
+- priority: This is an importance input only. Use high for "very/really/pretty important" or "high priority", low for "low priority" or "not urgent", and medium when unclear. Do not calculate a numeric score.
+- energyRequired: Extract high or low only when the user explicitly indicates the energy or difficulty required; otherwise use medium.
+- actions: Return at most one concise, useful first step when the input supports one. It must not repeat the user's whole request. Examples: a physics lab → "Review the lab instructions"; an essay → "Open the essay prompt"; studying for a quiz → "Review the study material". Return an empty array when there is not enough context for a useful first step.
+
+Do not invent a course, deadline, task type, or other factual detail. The submitted text is the only task context: do not request or infer account data. Do not create a plan or modify/save anything. Return only the requested structured fields; do not include private reasoning."""
         request_body = {
             "model": model,
             "messages": [

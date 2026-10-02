@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { AiSuggestionPanel } from "@/components/mpla/AiSuggestionPanel";
 import { AssumptionCheckDialog } from "@/components/mpla/AssumptionCheckDialog";
@@ -52,6 +52,7 @@ function HomeDashboard() {
   const [draft, setDraft] = useState<TaskDraft | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
   const [parseStatus, setParseStatus] = useState<TaskParseStatus>("idle");
+  const draftReviewRef = useRef<HTMLElement | null>(null);
   const { tasks, mode, notice, setNotice, addTask, finishTask, finishAction } = useMyPlaTasks();
   const planningData = useMyPlaPlanningData();
   const current = tasks.filter((task) => task.status === "current");
@@ -167,6 +168,18 @@ function HomeDashboard() {
 
           <GuidedTaskEntry
             parseStatus={parseStatus}
+            onReviewDraft={() => {
+              const review = draftReviewRef.current;
+              if (!review) return;
+              const prefersReducedMotion = window.matchMedia(
+                "(prefers-reduced-motion: reduce)",
+              ).matches;
+              review.scrollIntoView({
+                behavior: prefersReducedMotion ? "auto" : "smooth",
+                block: "start",
+              });
+              review.focus({ preventScroll: true });
+            }}
             onParseStatusChange={(status) => {
               setParseStatus(status);
               if (status === "preparing") setDraft(null);
@@ -188,6 +201,7 @@ function HomeDashboard() {
           />
           {draft ? (
             <TaskDraftReview
+              sectionRef={draftReviewRef}
               draft={draft}
               saving={savingDraft}
               onChange={(patch) =>

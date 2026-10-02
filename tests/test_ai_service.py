@@ -1,4 +1,5 @@
 import json
+from datetime import date, timedelta
 
 import httpx
 import pytest
@@ -48,6 +49,27 @@ def completion_response(content):
     )
 
 
+def parse_structured_draft(user_text, draft):
+    captured = {}
+
+    def handler(request):
+        captured["body"] = json.loads(request.content)
+        return completion_response(json.dumps(draft))
+
+    service = AIService(
+        OpenRouterTaskParser(
+            api_key="unit-test-key",
+            http_client=mock_client(handler),
+        )
+    )
+    return service.parse_task(user_text), captured
+
+
+def next_weekday(weekday):
+    today = date.today()
+    return today + timedelta(days=(weekday - today.weekday()) % 7)
+
+
 def test_openrouter_returns_a_strict_structured_draft_using_only_task_text():
     captured = {}
 
@@ -88,6 +110,122 @@ def test_openrouter_returns_a_strict_structured_draft_using_only_task_text():
     assert result["draft"].name == "Physics lab"
     assert result["draft"].due_date.isoformat() == "2026-10-08"
     assert result["draft"].actions[0].label == "Review the lab instructions"
+
+
+def test_physics_lab_text_becomes_a_concise_normalized_draft():
+    user_text = (
+        "I have a physics lab due Thursday. It'll probably take me around two hours "
+        "and it's pretty important."
+    )
+    draft_data = {
+        **SAMPLE_DRAFT,
+        "name": "Physics lab",
+        "description": None,
+        "dueDate": next_weekday(3).isoformat(),
+        "estimatedMinutes": 120,
+        "priority": "high",
+        "category": "Lab",
+    }
+
+    result, captured = parse_structured_draft(user_text, draft_data)
+    draft = result["draft"]
+    body = captured["body"]
+    schema = body["response_format"]["json_schema"]["schema"]
+
+    assert draft.name == "Physics lab"
+    assert draft.course == "Physics"
+    assert draft.due_date == next_weekday(3)
+    assert draft.estimated_minutes == 120
+    assert draft.priority == "high"
+    assert draft.category == "Lab"
+    assert draft.description is None
+    assert "2–8 words" in schema["properties"]["name"]["description"]
+    assert "do not copy the full user input" in schema["properties"]["description"]["description"]
+    assert "only when explicitly identified" in schema["properties"]["course"]["description"]
+    assert "pretty important" in schema["properties"]["priority"]["description"]
+    assert "next occurrence" in body["messages"][0]["content"]
+
+
+def test_english_essay_text_becomes_a_reviewable_task_with_a_useful_first_action():
+    user_text = (
+        "I need to finish my English essay before Friday. It should take about an hour. "
+        "I want to start by writing the introduction."
+    )
+    draft_data = {
+        **SAMPLE_DRAFT,
+        "name": "English essay",
+        "description": None,
+        "course": "English",
+        "dueDate": next_weekday(4).isoformat(),
+        "estimatedMinutes": 60,
+        "priority": "medium",
+        "category": "Essay",
+        "actions": [
+            {
+                "label": "Write the introduction",
+                "description": None,
+                "estimatedMinutes": 20,
+                "energyRequired": "medium",
+                "parentActionId": None,
+            }
+        ],
+    }
+
+    result, _ = parse_structured_draft(user_text, draft_data)
+    draft = result["draft"]
+
+    assert draft.name == "English essay"
+    assert draft.name != user_text
+    assert draft.due_date == next_weekday(4)
+    assert draft.estimated_minutes == 60
+    assert draft.actions[0].label == "Write the introduction"
+    assert len(draft.actions) == 1
+    assert draft.description is None
+
+
+def test_ambiguous_homework_text_does_not_invent_course_or_exact_deadline():
+    user_text = "I have some homework for class sometime this week."
+    draft_data = {
+        **SAMPLE_DRAFT,
+        "name": "Homework",
+        "description": None,
+        "course": None,
+        "dueDate": None,
+        "estimatedMinutes": 30,
+        "priority": "medium",
+        "energyRequired": "medium",
+        "category": None,
+        "actions": [],
+    }
+
+    result, _ = parse_structured_draft(user_text, draft_data)
+    draft = result["draft"]
+
+    assert draft.name == "Homework"
+    assert draft.course is None
+    assert draft.due_date is None
+    assert draft.category is None
+    assert draft.actions == []
+
+
+def test_full_natural_language_input_is_normalized_instead_of_becoming_the_task_name():
+    user_text = "I need to finish my physics lab by Thursday."
+    copied_draft = {
+        **SAMPLE_DRAFT,
+        "name": user_text,
+        "description": user_text,
+        "course": "I need to study physics",
+        "category": "I have a physics lab",
+    }
+
+    result, _ = parse_structured_draft(user_text, copied_draft)
+    draft = result["draft"]
+
+    assert draft.name == "Physics lab"
+    assert draft.name != user_text
+    assert draft.description is None
+    assert draft.course is None
+    assert draft.category is None
 
 
 def test_invalid_model_fields_are_rejected_by_the_existing_pydantic_task_model():

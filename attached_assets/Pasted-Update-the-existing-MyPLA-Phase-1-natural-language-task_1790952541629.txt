@@ -1,0 +1,265 @@
+Update the existing MyPLA Phase 1 natural-language task parsing flow. Do NOT add new AI features, agent behavior, memory, embeddings, autonomous actions, or automatic task saving. Keep the existing React → FastAPI → Python logic → Supabase architecture and preserve the existing Lovable visual style.
+
+There are two issues to fix.
+
+## 1. Make the AI draft review step obvious
+
+The current flow technically keeps the confirmation gate, but after parsing succeeds the UI only shows “Draft ready,” while the actual `TaskDraftReview` component is rendered separately below the task-entry component. I want the transition from AI processing → review → confirmation to be visually obvious.
+
+When parsing succeeds:
+
+* Keep the existing `TaskDraftReview` editable form.
+* Keep the existing `saved: false` behavior.
+* Keep “Add to my plan” as the only action that actually creates the task.
+* Do not auto-save anything.
+* Do not remove the existing discard/edit functionality.
+* Change the ready state so it clearly communicates:
+
+  * “MyPLA AI created a task draft”
+  * “Review what I understood before adding it to your plan.”
+* Add a clear primary button such as:
+
+  * “Review AI draft”
+* That button should scroll to and/or focus the existing `TaskDraftReview` section so the user immediately knows where to review it.
+* Make the review card itself more visually prominent and clearly label it as an AI-generated draft.
+* The review card should preferably say something like:
+
+  * “Here’s what I understood”
+  * “Review and edit before saving”
+* Preserve the editable fields already present.
+* When the user clicks “Add to my plan,” continue through the existing task creation flow and Python `PriorityEngine`.
+* After successful creation, remove the draft/review state and return the AI status UI to idle.
+
+Do not redesign the whole dashboard. This is specifically a UX improvement to the existing task-draft flow.
+
+## 2. Improve semantic extraction
+
+The current OpenRouter parser is returning valid structured JSON, but sometimes the `name` is effectively the entire sentence the user typed. I want the model to actually transform natural language into a clean task structure.
+
+Keep the existing strict JSON schema, but improve the schema descriptions and system prompt so the model clearly understands the purpose of each field.
+
+### Task name rules
+
+The `name` field should be a concise human-readable task title.
+
+Rules:
+
+* Normally 2–8 words.
+* Never copy the user's entire sentence into `name`.
+* Remove conversational wording such as:
+
+  * “I need to…”
+  * “I have to…”
+  * “I should…”
+  * “Can you help me…”
+* Do not put the deadline, duration, importance, or extra conversational explanation into the title unless it is actually part of the task's name.
+* Prefer the central noun/action:
+
+  * “I need to finish my physics lab by Thursday” → `Physics lab`
+  * “I have to study chapters 4 through 6 for biology” → `Study biology chapters 4–6`
+  * “I need to write my English essay before Friday” → `English essay`
+
+The full input text must NEVER simply become the task name unless the user explicitly supplied a short task title and nothing else.
+
+### Description rules
+
+`description` should contain supporting context that does not already belong in another structured field.
+
+Do not simply copy the user's entire input into `description`.
+
+For example:
+
+Input:
+“I have a physics lab due Thursday. It'll probably take me around two hours and it's pretty important.”
+
+Should become approximately:
+
+* name: `Physics lab`
+* course: `Physics`
+* dueDate: the appropriate Thursday
+* estimatedMinutes: `120`
+* priority: `high`
+* energyRequired: `medium`
+* category: `Lab`
+* description: null or only useful leftover context
+
+### Course rules
+
+Only populate `course` when the input explicitly identifies or clearly names the course.
+
+Do not invent a course from unrelated information.
+
+Examples:
+
+* “Physics lab” → `Physics` may be used when clearly functioning as the course name.
+* “Finish my homework” → course should be null.
+* “My STAT 210 problem set” → `STAT 210`.
+
+### Category rules
+
+Use a normalized category when the task type is clearly expressed.
+
+Examples:
+
+* physics lab → `Lab`
+* English essay → `Essay` or another existing normalized category
+* biology quiz → `Quiz`
+* math problem set → `Assignment`
+
+Do not invent a category when the task type is genuinely unclear.
+
+### Deadline rules
+
+Keep the existing date handling.
+
+* Resolve relative dates using today's date.
+* A named weekday must resolve to the correct upcoming occurrence.
+* If the deadline is genuinely unclear, return null.
+* Do not put the deadline into the task name.
+
+### Estimate rules
+
+Keep the existing behavior of extracting explicit durations and estimating a reasonable duration only when omitted.
+
+Examples:
+
+* “two hours” → 120
+* “about 45 minutes” → 45
+* “takes all afternoon” → use a reasonable estimate
+* no duration → reasonable default estimate
+
+Do not put the duration in `name`.
+
+### Priority rules
+
+Keep priority as an importance input only.
+
+* “very important,” “really important,” “high priority” → high
+* “not urgent,” “low priority” → low
+* unclear → medium
+
+Do not calculate the final numeric priority score with the LLM. Python's `PriorityEngine` remains authoritative.
+
+### Energy rules
+
+Extract only when the user explicitly indicates the energy/difficulty requirement.
+
+Otherwise use the existing medium default.
+
+### Action rules
+
+Keep the maximum of one initial action.
+
+The action should be a useful first step, not a copy of the user's entire sentence.
+
+Examples:
+
+* “I need to finish my physics lab” → `Review the lab instructions`
+* “I have to write an essay” → `Open the essay prompt`
+* “I need to study for my biology quiz” → `Review the study material`
+
+Only create an action when there is enough context for a useful first step.
+
+## 3. Add semantic safeguards in Python
+
+Do not rely exclusively on the LLM prompt.
+
+Add a small normalization/validation layer after the model response and before `TaskCreate` validation.
+
+At minimum, detect when:
+
+* `name` is identical or nearly identical to the original user input
+* `description` is simply the original user input
+* fields contain obvious conversational prefixes instead of normalized task information
+
+When this happens, normalize the draft rather than returning obviously poor extraction.
+
+Do not silently invent missing factual information.
+
+The normalization should improve formatting, not replace the LLM with a large heuristic parser.
+
+## 4. Add realistic parser tests
+
+Expand `tests/test_ai_service.py` with mock structured-output cases representing realistic user inputs.
+
+At minimum include:
+
+### Example A
+
+Input:
+“I have a physics lab due Thursday. It'll probably take me around two hours and it's pretty important.”
+
+Expected characteristics:
+
+* name is concise, not the full sentence
+* dueDate is the correct Thursday
+* estimatedMinutes = 120
+* priority = high
+* course/category are normalized appropriately
+* description does not duplicate the entire input
+
+### Example B
+
+Input:
+“I need to finish my English essay before Friday. It should take about an hour. I want to start by writing the introduction.”
+
+Expected characteristics:
+
+* concise English essay task name
+* Friday deadline
+* 60 minutes
+* useful first action related to writing the introduction
+* no copying of the entire input into the name
+
+### Example C
+
+Input:
+“I have some homework for class sometime this week.”
+
+Expected characteristics:
+
+* concise task name
+* unclear course remains null
+* unclear exact deadline remains null
+* no invented details
+
+Also add a regression test specifically proving that a full natural-language sentence cannot pass through unchanged as the task name when a concise normalized title is expected.
+
+## 5. Preserve the AI-human confirmation architecture
+
+The intended flow is:
+
+User speaks/types naturally
+→ MyPLA AI prepares structured draft
+→ visible processing state
+→ draft ready
+→ user reviews/edits
+→ user explicitly chooses “Add to my plan”
+→ Python creates the task
+→ Python calculates deterministic priority
+→ Supabase stores it
+
+The AI must NOT:
+
+* directly create the task
+* directly write Supabase data
+* silently change user data
+* bypass the review step
+* expose hidden chain-of-thought
+
+The visible AI status should describe observable application stages, not pretend to display the model's private reasoning.
+
+## 6. Verification
+
+Run:
+
+* Python test suite
+* frontend tests
+* `bun run build`
+* `git diff --check`
+
+Do not perform repeated live-provider retries just to make a test pass.
+
+After implementation, update `.mypla-foundation-progress.txt` with exactly what changed, what was verified, and anything still unverified.
+
+Stop after this task. Do not begin Phase 2 AI features.

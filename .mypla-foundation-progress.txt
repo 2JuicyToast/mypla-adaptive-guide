@@ -58,3 +58,25 @@ STILL UNVERIFIED
 KNOWN LIMITATIONS
 - The configured model can exhaust its output allowance before returning valid structured JSON, even with minimal reasoning and the current response schema. The API rejects such output without saving it; the guided entry tab is the fallback.
 - A successful health response confirms environment configuration, not provider availability, schema readiness, or persistent database behavior.
+
+LATEST PHASE 1 TASK-PARSING UPDATE — 2026-10-02
+
+CHANGED
+- Replaced the generic ready label with “MyPLA AI created a task draft,” explanatory copy, and a “Review AI draft” button that scrolls to and focuses the existing editable review card. The card is labeled as AI-generated and says “Here’s what I understood” and “Review and edit before saving.”
+- Preserved unsaved parsing, draft editing/discard, and “Add to my plan” as the only create action. Successful creation continues through Python task creation and PriorityEngine, then clears the draft and returns parse status to idle.
+- Expanded strict-schema field descriptions and the system prompt to direct concise task titles, nonduplicated supporting description, explicit course/category extraction, weekday deadlines, estimates, importance-only priority, explicit energy, and at most one useful first action.
+- Added a small Python normalization guard before TaskCreate validation. It detects copied/conversational names, removes duplicated descriptions, clears conversational course/category values, and avoids using the user's full input as an initial action; it does not infer missing task facts.
+- Added mocked structured-output tests for the physics lab, English essay, ambiguous homework, and full-input-name regression examples.
+
+VERIFIED
+- Python suite: `uv run --frozen --no-sync python -m pytest -q` — 39 passed. One pre-existing Starlette/httpx deprecation warning.
+- Frontend tests: `bun test` — 2 passed.
+- Production frontend/server build: `bun run build` — passed. Existing Vite path-plugin and large-client-chunk advisories remain.
+- Scoped ESLint on edited frontend files: passed.
+- `git diff --check`: passed.
+- `Start application` workflow restarted and running. Preview loads the sign-in page; the unauthenticated browser shows no browser-console errors after restart.
+
+STILL UNVERIFIED
+- The signed-in parsing, CTA scroll/focus, editable confirmation, and successful-create reset flow was not interactively exercised because the preview browser has no authenticated test account.
+- No live OpenRouter call was made for this update. Mock tests verify the instructions and deterministic safeguards, not the model's semantic extraction quality on every prompt.
+- Authenticated Supabase persistence still depends on the project's migration being applied and was not tested in this update.

@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import { Check, Plus, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -17,12 +18,14 @@ type DraftAction = NonNullable<TaskDraft["actions"]>[number];
 export function TaskDraftReview({
   draft,
   saving,
+  sectionRef,
   onChange,
   onConfirm,
   onCancel,
 }: {
   draft: TaskDraft;
   saving: boolean;
+  sectionRef: Ref<HTMLElement>;
   onChange: (patch: Partial<TaskDraft>) => void;
   onConfirm: () => void;
   onCancel: () => void;
@@ -38,10 +41,24 @@ export function TaskDraftReview({
   }
 
   return (
-    <section className="surface-panel mt-4 border border-proposal/30 p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-proposal">
-        Review and edit task draft
-      </p>
+    <section
+      ref={sectionRef}
+      id="task-draft-review"
+      tabIndex={-1}
+      aria-labelledby="task-draft-review-title"
+      className="surface-panel mt-4 scroll-mt-6 border-2 border-proposal/45 bg-proposal-muted/20 p-5 shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+    >
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="inline-flex rounded-full bg-proposal/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-proposal">
+            AI-generated draft
+          </p>
+          <h3 id="task-draft-review-title" className="mt-2 text-base font-semibold">
+            Here’s what I understood
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">Review and edit before saving.</p>
+        </div>
+      </div>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="space-y-1.5 text-sm font-medium">
           Task name

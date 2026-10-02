@@ -33,6 +33,7 @@ const conversationalPrompts = [
 export function GuidedTaskEntry({
   onSubmitNaturalLanguage,
   onSubmitGuided,
+  onReviewDraft,
   parseStatus = "idle",
   onParseStatusChange,
 }: {
@@ -46,6 +47,7 @@ export function GuidedTaskEntry({
     energyRequired: EnergyLevel;
     firstAction: string;
   }) => void;
+  onReviewDraft?: () => void;
   parseStatus?: TaskParseStatus;
   onParseStatusChange?: (status: TaskParseStatus) => void;
 }) {
@@ -152,10 +154,7 @@ export function GuidedTaskEntry({
             — only this task text is sent to OpenRouter to prepare an unsaved draft. Avoid including
             sensitive details; you can review and edit the result before saving.
           </div>
-          <Button
-            disabled={!text.trim() || parsing}
-            onClick={() => void prepareDraft()}
-          >
+          <Button disabled={!text.trim() || parsing} onClick={() => void prepareDraft()}>
             <Send className="size-4" />
             {parsing ? "Preparing draft…" : "Prepare task draft"}
           </Button>
@@ -251,6 +250,7 @@ export function GuidedTaskEntry({
         status={parseStatus}
         onRetry={() => void prepareDraft()}
         onUseGuidedEntry={() => changeTab("guided")}
+        onReviewDraft={() => onReviewDraft?.()}
       />
     </section>
   );

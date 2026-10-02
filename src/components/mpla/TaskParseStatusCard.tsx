@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, LoaderCircle, Sparkles } from "lucide-react";
+import { AlertCircle, ArrowDown, CheckCircle2, LoaderCircle, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import type { TaskParseStatus } from "@/lib/task-parse-status";
@@ -7,10 +7,12 @@ export function TaskParseStatusCard({
   status,
   onRetry,
   onUseGuidedEntry,
+  onReviewDraft,
 }: {
   status: TaskParseStatus;
   onRetry: () => void;
   onUseGuidedEntry: () => void;
+  onReviewDraft: () => void;
 }) {
   if (status === "idle") return null;
 
@@ -19,7 +21,7 @@ export function TaskParseStatusCard({
     status === "preparing"
       ? "Preparing your task…"
       : status === "ready"
-        ? "Draft ready"
+        ? "MyPLA AI created a task draft"
         : status === "rate-limited"
           ? "MyPLA is temporarily rate limited."
           : "MyPLA couldn’t prepare that task right now.";
@@ -27,7 +29,7 @@ export function TaskParseStatusCard({
     status === "preparing"
       ? "Your request is in progress. Nothing is saved until you review and confirm the draft."
       : status === "ready"
-        ? "Review or edit the details below. Nothing is saved until you choose Add to my plan."
+        ? "Review what I understood before adding it to your plan."
         : status === "rate-limited"
           ? "Your task was not saved. Please try again shortly or use guided entry."
           : "Your task was not saved. Try again or use guided entry.";
@@ -100,6 +102,14 @@ export function TaskParseStatusCard({
               </Button>
               <Button type="button" size="sm" variant="ghost" onClick={onUseGuidedEntry}>
                 Use guided entry
+              </Button>
+            </div>
+          ) : null}
+          {status === "ready" ? (
+            <div className="mt-3">
+              <Button type="button" size="sm" onClick={onReviewDraft}>
+                <ArrowDown className="size-4" />
+                Review AI draft
               </Button>
             </div>
           ) : null}
