@@ -1,0 +1,90 @@
+We are at the verification stage, not another rewrite.
+
+I checked the latest repository state. The code now defaults to `openrouter/free`, has structured-output error handling, a one-retry path for incomplete responses, and the AI → review → user confirmation flow.
+
+Do NOT change the parser architecture or add new AI features yet.
+
+## Do this next
+
+1. Verify the current `openrouter/free` configuration with a small number of real OpenRouter requests using synthetic, non-sensitive task text.
+
+Use these individually:
+
+* “I have a physics lab due Thursday. It should take about two hours and it is important.”
+* “I need to finish my English essay before Friday. It should take about an hour.”
+
+Do not save either task.
+
+2. Determine whether the current default actually returns a valid structured draft.
+
+For each request, check:
+
+* request reaches OpenRouter
+* selected model/provider
+* HTTP result
+* whether structured output is returned
+* whether JSON parses
+* whether Pydantic validation succeeds
+* resulting task name
+* due date
+* estimate
+* priority
+* course/category when supported
+* first action when appropriate
+
+Do not log the API key, full user text, raw provider response, or hidden reasoning.
+
+3. Include a concise verification-results table in your final report and in `.mypla-foundation-progress.txt`.
+
+Use this structure:
+
+| Test                      | Result    | Key finding                                              |
+| ------------------------- | --------- | -------------------------------------------------------- |
+| Physics lab live parse    | PASS/FAIL | e.g. structured draft returned; title/date/time/priority |
+| English essay live parse  | PASS/FAIL | e.g. structured draft returned; title/date/time/action   |
+| OpenRouter error handling | PASS/FAIL | e.g. incomplete/429/provider errors classified correctly |
+| Existing Python tests     | PASS/FAIL | test count                                               |
+| Frontend tests            | PASS/FAIL | test count                                               |
+| Production build          | PASS/FAIL | note any pre-existing advisory                           |
+| Scoped ESLint             | PASS/FAIL | note any warning                                         |
+| `git diff --check`        | PASS/FAIL | —                                                        |
+
+Keep the table concise and factual. Do not claim a test passed unless it was actually run.
+
+4. If the requests succeed:
+
+Leave the parser alone. Do not keep rewriting it.
+
+Update `.mypla-foundation-progress.txt` to record that `openrouter/free` was successfully verified with live synthetic requests.
+
+5. If the requests fail:
+
+Do not immediately rewrite the parser.
+
+Determine the actual failure category first:
+
+* rate limit
+* provider unavailable
+* incomplete/truncated response
+* malformed JSON
+* invalid structured draft
+
+Record the exact safe failure category in the verification table and progress file.
+
+6. Only change code if the verification reveals an actual implementation bug.
+
+7. Run:
+
+* Python tests
+* frontend tests
+* `bun run build`
+* scoped ESLint
+* `git diff --check`
+
+8. Do not begin Phase 2 AI work.
+
+The goal of this turn is simply:
+
+**prove whether the new `openrouter/free` implementation works in the real environment.**
+
+Do not consider mock tests sufficient for this step.
