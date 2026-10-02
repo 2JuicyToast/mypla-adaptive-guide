@@ -1,0 +1,63 @@
+Do not make another broad parser rewrite yet.
+
+The UX and normalization changes are now implemented. The next step is to verify the actual configured OpenRouter model against realistic task-intake text.
+
+Use the existing MyPLA Phase 1 parser exactly as it currently exists.
+
+## Live verification
+
+Make a small number of controlled real OpenRouter requests using synthetic/non-sensitive task text.
+
+Test these inputs individually:
+
+1. “I have a physics lab due Thursday. It'll probably take me around two hours and it's pretty important.”
+
+2. “I need to finish my English essay before Friday. It should take about an hour. I want to start by writing the introduction.”
+
+3. “I have some homework for class sometime this week.”
+
+For each response, record only the resulting structured draft fields needed to evaluate extraction. Do not log or expose the API key, hidden reasoning, or unnecessary provider diagnostics.
+
+Check specifically:
+
+* concise task name
+* no full-sentence task name
+* correct deadline
+* correct duration
+* reasonable priority
+* course extraction only when supported
+* category extraction only when supported
+* useful first action when appropriate
+* no duplication of the user's entire sentence in description
+* no invented facts
+
+## Important
+
+Do not save any of these synthetic tasks to Supabase or the user's task list.
+
+Do not bypass the existing review/confirmation flow.
+
+Do not add Phase 2 AI functionality.
+
+If the actual model produces good structured drafts, leave the parser implementation alone.
+
+If the actual model still produces poor extraction, show the exact structured outputs from the three synthetic tests and identify which fields fail before changing the implementation.
+
+Also test the browser flow if an authenticated test user is available:
+
+natural-language input
+→ Preparing state
+→ successful response
+→ “MyPLA AI created a task draft”
+→ “Review AI draft”
+→ editable TaskDraftReview
+→ “Add to my plan”
+→ task creation
+
+Do not claim the authenticated save flow passed unless it was actually exercised.
+
+Update `.mypla-foundation-progress.txt` with the real test results and clearly distinguish live-provider verification from mock tests.
+
+Run the existing Python tests, frontend tests, build, and `git diff --check` after any code changes.
+
+Stop after Phase 1 verification.

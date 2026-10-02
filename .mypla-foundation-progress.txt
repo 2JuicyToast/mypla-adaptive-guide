@@ -75,8 +75,9 @@ VERIFIED
 - Scoped ESLint on edited frontend files: passed.
 - `git diff --check`: passed.
 - `Start application` workflow restarted and running. Preview loads the sign-in page; the unauthenticated browser shows no browser-console errors after restart.
+- Live OpenRouter verification on 2026-10-02: sent each of the three synthetic prompts once through the existing `AIService`/`OpenRouterTaskParser`; no task was saved. Cases 1 and 2 returned the safe `AIProviderUnavailableError`, so no structured draft was available. Case 3 returned `{"name":"Class homework","description":null,"course":null,"due_date":null,"estimated_minutes":60,"priority":"medium","energy_required":"medium","category":null,"actions":[]}`. No raw provider diagnostics or hidden reasoning were recorded.
 
 STILL UNVERIFIED
 - The signed-in parsing, CTA scroll/focus, editable confirmation, and successful-create reset flow was not interactively exercised because the preview browser has no authenticated test account.
-- No live OpenRouter call was made for this update. Mock tests verify the instructions and deterministic safeguards, not the model's semantic extraction quality on every prompt.
+- Cases 1 and 2 did not return structured drafts, so their live title, deadline, estimate, priority, category, and first-action extraction remain unverified. Case 3 returned a concise title and no invented course/date/action; possible issues to review are the redundant “Class” in its title and a null category despite “homework” being stated. Its 60-minute estimate is plausible but inferred. No parser changes were made after this check.
 - Authenticated Supabase persistence still depends on the project's migration being applied and was not tested in this update.
