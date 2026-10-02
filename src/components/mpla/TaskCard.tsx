@@ -94,7 +94,7 @@ export function TaskCard({
       ) : null}
 
       <div className={cn("flex flex-wrap gap-2", compact && "pt-1")}>
-        <Button size="sm" disabled={readOnly} onClick={() => onStart?.(task)}>
+        <Button size="sm" disabled={readOnly || !onStart} onClick={() => onStart?.(task)}>
           <Play className="size-4" />
           Start
         </Button>

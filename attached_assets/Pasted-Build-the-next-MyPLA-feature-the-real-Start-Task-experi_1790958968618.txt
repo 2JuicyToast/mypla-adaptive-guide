@@ -1,0 +1,289 @@
+Build the next MyPLA feature: the real **Start Task** experience.
+
+Do not modify the Profile section. It is intentionally a lightweight placeholder for a later personalization phase.
+
+Do not change the existing natural-language parser or OpenRouter configuration. The Phase 1 AI task parser is working and should remain stable.
+
+## Goal
+
+The TaskCard already has a “Start” button, but the home route does not currently provide an `onStart` handler, so clicking Start does not begin a real workflow.
+
+Create the first version of the MyPLA task-start experience so that:
+
+Task card
+→ user clicks Start
+→ MyPLA opens a focused task-start/session experience
+→ user can indicate their current situation
+→ MyPLA prepares the task context for future AI assistance
+→ user can begin working or ask for help
+
+This should become the foundation for later AI-guided task initiation.
+
+## 1. Create a Start Task interface
+
+Add a polished MyPLA start-task component/dialog using the existing visual language.
+
+When the user clicks **Start** on a task:
+
+* open a focused dialog or panel
+* show the task name
+* show the current next action
+* show due date
+* show estimated time
+* show energy requirement
+* clearly identify that this is the task the user is starting
+
+Use copy that feels like an assistant rather than a generic form.
+
+For example:
+
+**Starting: Physics Lab**
+
+Next action:
+**Review the lab instructions**
+
+Estimated time:
+**2 hours**
+
+Energy:
+**Medium**
+
+Then give the user a small set of useful choices about their current situation.
+
+## 2. Initial context choices
+
+Include quick responses such as:
+
+* “I’m ready to start”
+* “I have less time than expected”
+* “I’m low on energy”
+* “I’m not sure how to start”
+* “Something is getting in the way”
+
+Also allow a small optional text field:
+
+**“Anything I want MyPLA to know right now…”**
+
+Keep this lightweight. The user should not have to fill out a questionnaire before working.
+
+## 3. Do not pretend AI is already analyzing the session
+
+For this implementation, do NOT call the LLM yet.
+
+This is the foundation for the later AI-assisted start experience.
+
+Do not display fake reasoning such as:
+
+* “Analyzing your motivation”
+* “Thinking about your best strategy”
+* “Determining your optimal approach”
+
+unless that information is actually produced by the application.
+
+You may use honest UI language such as:
+
+**“Ready when you are.”**
+
+or:
+
+**“Tell MyPLA what is getting in the way.”**
+
+## 4. Add session state
+
+Create a small frontend task-session state model.
+
+A started session should know:
+
+* task ID
+* task name
+* current action ID, if one exists
+* current action text
+* start time
+* selected context/status
+* optional user note
+
+Keep this separate from the permanent Task model.
+
+Do not add unnecessary database fields yet if local session state is sufficient.
+
+The architecture should make it easy to persist useful session information later.
+
+## 5. Connect the existing Start button
+
+Update the home route so:
+
+`TaskCard onStart → opens Start Task experience`
+
+The currently unused `onStart` prop should become functional.
+
+Make sure the correct task is passed into the session.
+
+The existing Complete, Complete next action, and I'm stuck behavior must continue working independently.
+
+## 6. Make “I'm not sure how to start” useful
+
+For now, do NOT ask the LLM to solve this.
+
+Instead, route it into a clear future-ready state such as:
+
+**“Got it. MyPLA can help you figure out the first step.”**
+
+Then provide:
+
+* **Start with the current action**
+* **Break this down**
+* **I'm still stuck**
+
+These can initially be placeholders or structured UI states that do not perform AI actions.
+
+The purpose is to establish the interaction pattern that Phase 2 AI will later power.
+
+## 7. Start working action
+
+When the user chooses:
+
+**“I’m ready to start”**
+
+the interface should clearly transition into a lightweight active state.
+
+For example:
+
+**You’re working on Physics Lab**
+
+Current action:
+**Review the lab instructions**
+
+Then provide:
+
+* Complete next action
+* I'm stuck
+* End session
+
+Do not automatically complete the action when the user starts.
+
+Starting ≠ completing.
+
+## 8. Preserve the single-next-action design
+
+Do not reveal the full task action hierarchy in the start experience.
+
+The user should continue seeing only the next unfinished action unless they explicitly ask for more detail.
+
+Completed actions remain hidden from the normal task card.
+
+## 9. Energy/time responses
+
+For the first version, the quick context responses should primarily be session context, not automatic task modification.
+
+For example:
+
+If the user selects:
+
+**“I have less time than expected”**
+
+do not silently change the estimate.
+
+Instead show something like:
+
+**“Got it. We can work with the time you have.”**
+
+Later AI/scheduling logic can use this as context for a proposal.
+
+Likewise:
+
+**“I’m low on energy”**
+
+should not automatically change the task's stored energy requirement.
+
+It is current-session information.
+
+## 10. Session exit
+
+Provide:
+
+**End session**
+
+This should return the user to the normal task card.
+
+Do not mark the task complete.
+
+Do not modify the task's permanent fields simply because a session ended.
+
+## 11. Future AI boundary
+
+Design the component so a future AI service can receive structured context such as:
+
+```text
+task
+current action
+estimated time
+energy requirement
+due date
+session context
+user note
+```
+
+and return a structured proposal.
+
+Future flow:
+
+Start task
+→ collect context
+→ AI proposal
+→ user reviews
+→ user accepts/edits/rejects
+→ Python commits any approved change
+
+Do not implement that LLM call in this turn.
+
+## 12. Accessibility and UX
+
+Keep the same polished Lovable/MyPLA aesthetic.
+
+The start experience should:
+
+* work on desktop and mobile
+* have clear focus management
+* have accessible dialog/panel labeling
+* support keyboard interaction
+* avoid unnecessary scrolling
+* make the current action immediately visible
+
+## 13. Testing
+
+Add tests for the new interaction/state logic where practical.
+
+At minimum verify:
+
+* clicking Start opens the correct task session
+* the correct next action is shown
+* selecting a context option updates session state
+* ending a session does not complete the task
+* starting a session does not modify permanent task fields
+* existing task completion still works
+* existing AI task parsing tests remain passing
+
+Run:
+
+* Python tests
+* frontend tests
+* `bun run build`
+* scoped ESLint
+* `git diff --check`
+
+## 14. Progress file
+
+Update `.mypla-foundation-progress.txt` with:
+
+* what the Start Task experience now does
+* what is implemented
+* what remains for the future AI-assisted start flow
+* test results
+
+Do not modify the Profile section.
+
+Do not modify the working Phase 1 parser unless required to fix an actual regression.
+
+Do not begin the next AI feature after this task.
+
+Stop after the Start Task experience is implemented and verified.

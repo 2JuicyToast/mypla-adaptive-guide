@@ -8,6 +8,7 @@ import { GuidedTaskEntry } from "@/components/mpla/GuidedTaskEntry";
 import { MyPlaShell } from "@/components/mpla/MyPlaShell";
 import { ResourceLibrary } from "@/components/mpla/ResourceLibrary";
 import { ScheduleNotificationCard } from "@/components/mpla/ScheduleNotificationCard";
+import { StartTaskDialog } from "@/components/mpla/StartTaskDialog";
 import { StuckDialog } from "@/components/mpla/StuckDialog";
 import { TaskDraftReview } from "@/components/mpla/TaskDraftReview";
 import { TaskCard } from "@/components/mpla/TaskCard";
@@ -25,6 +26,7 @@ import {
 } from "@/lib/mypla-api";
 import type { TaskParseStatus } from "@/lib/task-parse-status";
 import type { Task } from "@/lib/mpla-types";
+import { createTaskSession, endTaskSession, type TaskSession } from "@/lib/task-session";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -48,6 +50,7 @@ export const Route = createFileRoute("/")({
 
 function HomeDashboard() {
   const [stuckTask, setStuckTask] = useState<Task | null>(null);
+  const [taskSession, setTaskSession] = useState<TaskSession | null>(null);
   const [assumptionOpen, setAssumptionOpen] = useState(false);
   const [draft, setDraft] = useState<TaskDraft | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
@@ -145,6 +148,7 @@ function HomeDashboard() {
                     key={task.id}
                     task={task}
                     readOnly={mode === "sample"}
+                    onStart={(item) => setTaskSession(createTaskSession(item))}
                     onStuck={setStuckTask}
                     onCompleteAction={(item, actionId) =>
                       finishAction(item.id, actionId).then(() =>
@@ -249,6 +253,30 @@ function HomeDashboard() {
         open={stuckTask !== null}
         onOpenChange={(open) => !open && setStuckTask(null)}
         onSubmit={(payload) => void recordStuck(payload)}
+      />
+      <StartTaskDialog
+        session={taskSession}
+        task={taskSession ? (tasks.find((item) => item.id === taskSession.taskId) ?? null) : null}
+        onSessionChange={(session) => {
+          if (session === null) {
+            setTaskSession((current) => (current ? endTaskSession(current) : null));
+          } else {
+            setTaskSession(session);
+          }
+        }}
+        onOpenChange={(open) => {
+          if (!open) setTaskSession((current) => (current ? endTaskSession(current) : null));
+        }}
+        onCompleteAction={async (taskId, actionId) => {
+          const updated = await finishAction(taskId, actionId);
+          setNotice(`Completed the next action for "${updated.name}".`);
+          return updated;
+        }}
+        onStuck={(task) => {
+          const latest = tasks.find((item) => item.id === task.id) ?? task;
+          setTaskSession(null);
+          setStuckTask(latest);
+        }}
       />
       <AssumptionCheckDialog
         assumption={planningData.assumptions[0] ?? null}

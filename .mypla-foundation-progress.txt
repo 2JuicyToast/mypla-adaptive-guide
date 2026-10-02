@@ -97,3 +97,21 @@ LATEST LIVE VERIFICATION — 2026-10-02
 
 Both live requests used the existing `AIService`/`OpenRouterTaskParser` directly and returned drafts without invoking task creation or Supabase writes. No parser changes were made. The actual downstream model/provider selected behind `openrouter/free` was not available in the parser result metadata. Live signed-in Supabase persistence remains unverified; configuring its Secrets does not confirm that the migration is applied.
 - After adding the requested Secrets, restarted `Start application`; `/api/health` reported `storageMode=supabase`, `supabaseConfigured=true`, and `openRouterConfigured=true`. The preview rendered the sign-in page. This confirms runtime configuration and page loading, not authenticated Supabase reads or writes.
+
+LATEST START TASK UPDATE — 2026-10-02
+
+IMPLEMENTED
+- Wired the home task cards' Start button to a focused session dialog. The local session snapshot includes task metadata, only the next unfinished action, start time, context, and an optional note. The remaining action hierarchy stays hidden.
+- Added the requested check-in choices and unsure/help states. Starting or ending a session does not complete or otherwise modify the task, and no LLM call or parser/configuration change was added.
+- Active sessions can complete the current action through the existing task handler and advance to the next unfinished action. Stuck flows hand off to the existing report dialog; the /current assumption-check behavior remains separate.
+
+VERIFIED
+- Python tests: `uv run --frozen --no-sync python -m pytest -q` — 48 passed; one existing Starlette/httpx deprecation warning.
+- Frontend tests: `bun test` — 8 passed, including five task-session model tests.
+- Production build: `bun run build` — passed. Existing Vite path-plugin and large-client-chunk advisories remain.
+- Scoped ESLint on changed frontend files — zero errors; the existing TaskCard Fast Refresh warning remains. `git diff --check` passed.
+- Restarted `Start application`; workflow is running and `/api/health` reports `storageMode=supabase`, `supabaseConfigured=true`, and `openRouterConfigured=true`.
+
+UNVERIFIED
+- The signed-in Start Task dialog was not visually exercised: the preview browser displays the sign-in page and has no authenticated test user. Unit tests cover the session model, not actual browser clicks or the dialog's complete interaction sequence.
+- Authenticated action persistence was not repeated in this pass. The browser console still reports the existing server/client hydration attribute mismatch on the sign-in page.
