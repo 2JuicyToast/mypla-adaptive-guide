@@ -9,7 +9,11 @@ from typing import Any
 
 import httpx
 
-from backend.services.ai_errors import AIConfigurationError, AIProviderUnavailableError
+from backend.services.ai_errors import (
+    AIConfigurationError,
+    AIProviderUnavailableError,
+    AIRateLimitedError,
+)
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_OPENROUTER_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"
@@ -28,7 +32,7 @@ TASK_DRAFT_SCHEMA: dict[str, Any] = {
         "category": {"type": ["string", "null"]},
         "actions": {
             "type": "array",
-            "maxItems": 5,
+            "maxItems": 1,
             "items": {
                 "type": "object",
                 "additionalProperties": False,
@@ -104,12 +108,13 @@ class OpenRouterTaskParser:
         system_prompt = (
             "You create an unsaved MyPLA task draft from the user's task-intake text. "
             f"Today's date is {today}; use it only to resolve clearly stated relative deadlines. "
-            "Extract only information supported by the text. If a deadline, course, or category "
-            "is unclear, return null. Estimate a reasonable duration when omitted. Use medium "
-            "priority and medium energy when importance or energy is not stated. Priority is only "
-            "an importance input; do not calculate a priority score. Add a short first action "
-            "only when it is useful. Do not make a plan, create or modify data, or request or "
-            "infer account context."
+            "Extract only information explicitly supported by the text. Return null for a course "
+            "or category unless it is stated. If a deadline is unclear, return null. A date derived "
+            "from a named weekday must fall on that weekday; if unsure, return null. Estimate a "
+            "reasonable duration when omitted. Use medium priority and medium energy when importance "
+            "or energy is not stated. Priority is only an importance input; do not calculate a "
+            "priority score. Add at most one short first action, only when useful. Do not make a "
+            "plan, create or modify data, or request or infer account context."
         )
         request_body = {
             "model": model,
@@ -126,7 +131,7 @@ class OpenRouterTaskParser:
                 },
             },
             "provider": {"require_parameters": True},
-            "max_tokens": 1200,
+            "max_tokens": 8192,
             "temperature": 0.1,
         }
 
@@ -143,6 +148,14 @@ class OpenRouterTaskParser:
             result = response.json()
             content = result["choices"][0]["message"]["content"]
             draft = json.loads(content) if isinstance(content, str) else content
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 429:
+                raise AIRateLimitedError(
+                    "The task parser is temporarily rate limited."
+                ) from exc
+            raise AIProviderUnavailableError(
+                "The task parser is temporarily unavailable. Your task was not saved."
+            ) from exc
         except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
             raise AIProviderUnavailableError(
                 "The task parser is temporarily unavailable. Your task was not saved."

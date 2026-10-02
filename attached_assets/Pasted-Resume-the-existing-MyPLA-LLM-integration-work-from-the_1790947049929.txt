@@ -1,0 +1,190 @@
+Resume the existing MyPLA LLM integration work from the current repository state.
+
+Do NOT add additional AI capabilities yet.
+
+Do NOT add chat memory, embeddings, vector databases, tool calling, agent loops, scheduling intelligence, autonomous actions, or new product features.
+
+The first LLM integration is already implemented as natural-language task parsing through:
+
+```text
+React
+→ FastAPI
+→ AIService
+→ OpenRouter
+→ Nemotron 3 Super
+```
+
+## Goal
+
+Finish and VERIFY the existing Phase 1 integration.
+
+The definition of done is an actual successful request to the configured OpenRouter model using a synthetic test input.
+
+## Configuration
+
+Use:
+
+```text
+OPENROUTER_API_KEY
+OPENROUTER_MODEL=nvidia/nemotron-3-super-120b-a12b:free
+```
+
+The API key must remain a Replit Secret and must never be committed, logged, displayed, or sent to the frontend.
+
+## First verify the runtime
+
+Confirm the running FastAPI process can see the OpenRouter configuration.
+
+Do not print the secret.
+
+Do not expose it through `/api/client-config`.
+
+The application should distinguish between:
+
+* Supabase configured
+* OpenRouter configured
+* OpenRouter unavailable
+* OpenRouter rate limited
+
+## Verify the real API call
+
+Use ONLY synthetic test text.
+
+Start with:
+
+```text
+I have a physics lab due Thursday. It will probably take me two hours and it is pretty important.
+```
+
+Send it through the actual MyPLA natural-language task entry UI if possible.
+
+Verify that:
+
+```text
+Natural-language input
+→ OpenRouter
+→ Nemotron
+→ structured task draft
+→ TaskDraftReview
+```
+
+works.
+
+Do not save the task until the user explicitly confirms it.
+
+Then verify that confirming the draft goes through the existing task creation endpoint and PriorityEngine rather than allowing the model to assign the final priority score.
+
+## Test several synthetic inputs
+
+Test:
+
+```text
+I have a physics lab due Thursday. It will probably take me two hours and it is pretty important.
+
+Read chapter 6 tonight. It should take about 30 minutes and is low priority.
+
+I need to finish my calculus homework by Friday. It will probably take an hour.
+
+Work on something for class soon.
+```
+
+Check that the model does not invent deadlines, courses, or categories when the text does not support them.
+
+## Verify failure behavior
+
+Test at least:
+
+* missing OpenRouter key
+* invalid provider response
+* malformed JSON
+* rate-limit/provider failure
+
+The UI should explain the problem without exposing raw upstream diagnostics.
+
+The user should always still have the guided task-entry path available.
+
+## Verify privacy boundary
+
+Confirm the request sent to OpenRouter contains only the task-intake text plus the controlled parsing instructions.
+
+Do NOT send:
+
+* user's full task database
+* schedule
+* reflections
+* resources
+* account information
+* unrelated task history
+
+The first phase is intentionally context-free.
+
+## Code quality
+
+Keep the provider-neutral `AIService` abstraction.
+
+Do not make React depend directly on OpenRouter.
+
+Do not allow the LLM to directly write to Supabase.
+
+Do not allow the LLM to directly modify priorities, schedules, reflections, resources, or other persistent data.
+
+## Tests
+
+Run:
+
+```text
+bun run build
+python3 -m pytest -q
+```
+
+Add/update tests as needed.
+
+Then perform at least one REAL OpenRouter integration request using a synthetic input.
+
+Do not claim the integration works until the real request succeeds.
+
+## Progress file
+
+Update:
+
+```text
+.mypla-foundation-progress.txt
+```
+
+with a dedicated AI integration section.
+
+Clearly distinguish:
+
+* implemented
+* tested with mocks
+* verified against the real API
+* still unverified
+* known limitations
+
+Do not include the API key or any personal user data.
+
+## Stop condition
+
+Once the following works:
+
+```text
+Synthetic user input
+↓
+Nemotron
+↓
+Structured draft
+↓
+TaskDraftReview
+↓
+User confirmation
+↓
+Python TaskCreate
+↓
+PriorityEngine
+↓
+Supabase
+```
+
+STOP.
+
+Do not continue into Phase 2 AI behavior yet.

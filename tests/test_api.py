@@ -5,7 +5,11 @@ import backend.main as main
 from backend.database.repository import MemoryRepository
 from backend.main import RequestContext, app, get_context
 from backend.models import TaskCreate
-from backend.services.ai_errors import AIProviderUnavailableError
+from backend.services.ai_errors import (
+    AIConfigurationError,
+    AIProviderUnavailableError,
+    AIRateLimitedError,
+)
 
 
 @pytest.fixture
@@ -22,15 +26,19 @@ def client():
 def test_health_discloses_non_persistent_development_storage(client, monkeypatch):
     monkeypatch.delenv("SUPABASE_URL", raising=False)
     monkeypatch.delenv("SUPABASE_PUBLISHABLE_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     response = client.get("/api/health")
     assert response.status_code == 200
     assert response.json()["storageMode"] == "memory"
     assert response.json()["persistent"] is False
+    assert response.json()["supabaseConfigured"] is False
+    assert response.json()["openRouterConfigured"] is False
 
 
 def test_health_and_public_client_config_read_supabase_configuration(client, monkeypatch):
     monkeypatch.setenv("SUPABASE_URL", "https://mypla-test.supabase.co")
     monkeypatch.setenv("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_test")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-openrouter-secret")
 
     health = client.get("/api/health")
     config = client.get("/api/client-config")
@@ -39,6 +47,8 @@ def test_health_and_public_client_config_read_supabase_configuration(client, mon
     assert health.json()["supabaseConfigured"] is True
     assert health.json()["storageMode"] == "supabase"
     assert health.json()["persistent"] is True
+    assert health.json()["openRouterConfigured"] is True
+    assert "test-only-openrouter-secret" not in health.text
     assert "SUPABASE_URL" not in health.text
     assert "SUPABASE_PUBLISHABLE_KEY" not in health.text
     assert config.status_code == 200
@@ -152,6 +162,36 @@ def test_natural_language_endpoint_returns_a_safe_error_when_provider_is_unavail
     response = client.post("/api/tasks/parse", json={"text": "A synthetic test task"})
 
     assert response.status_code == 503
+    assert "Your task was not saved" in response.json()["detail"]
+
+
+def test_natural_language_endpoint_explains_missing_provider_configuration(
+    client, monkeypatch
+):
+    def not_configured(_text):
+        raise AIConfigurationError("configuration diagnostic")
+
+    monkeypatch.setattr(main.ai_service, "parse_task", not_configured)
+
+    response = client.post("/api/tasks/parse", json={"text": "A synthetic test task"})
+
+    assert response.status_code == 503
+    assert "not configured" in response.json()["detail"]
+    assert "guided task entry" in response.json()["detail"]
+    assert "configuration diagnostic" not in response.text
+
+
+def test_natural_language_endpoint_distinguishes_rate_limits_safely(client, monkeypatch):
+    def rate_limited(_text):
+        raise AIRateLimitedError("upstream rate-limit diagnostics")
+
+    monkeypatch.setattr(main.ai_service, "parse_task", rate_limited)
+
+    response = client.post("/api/tasks/parse", json={"text": "A synthetic test task"})
+
+    assert response.status_code == 429
+    assert "rate limited" in response.json()["detail"]
+    assert "upstream rate-limit diagnostics" not in response.text
     assert "Your task was not saved" in response.json()["detail"]
 
 

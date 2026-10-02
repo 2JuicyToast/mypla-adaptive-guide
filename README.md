@@ -59,7 +59,7 @@ scripts/dev.sh            Combined Replit development command
 - `GET /api/schedule`, `POST /api/schedule/suggestions`
 - `GET/POST /api/resources`, `GET/POST /api/reflections`
 - `GET /api/myrpg/export` (future export shape only)
-- `GET /health` and `/api/health` report the active storage mode.
+- `GET /health` and `/api/health` report the active storage mode and whether Supabase and OpenRouter are configured. Task parsing distinguishes missing configuration, provider outages, and rate limits without exposing upstream diagnostics.
 
 Task priority is deterministic. Deadline contributes up to 45 points, importance 30, estimated duration 15, and energy fit 10. The weights are constants in `backend/services/priority_engine.py`. The scheduler filters tasks that fit the available time and creates a pending proposal; it does not book work automatically. Proposal rejection never commits its changes.
 
@@ -91,7 +91,7 @@ Never commit `.env`; it is ignored by Git. Do not use the separate MyCommNet Sup
 - `Scheduler` exposes a typical weekday pattern and time-fit recommendations.
 - `ProposalService` stores suggested changes and commits supported changes only after approval.
 - `AssumptionService` records Yes/No/Not sure and user corrections as confirmed, observed, or suggested knowledge.
-- `AIService` is an interface placeholder with deterministic responses; it does not call an LLM.
+- `AIService` is a provider-neutral boundary for context-free task parsing. Its OpenRouter adapter returns an unsaved, validated draft; deterministic priority scoring and task creation remain in Python.
 - `export_for_myrpg` defines a future data hand-off only.
 
 ## Checks

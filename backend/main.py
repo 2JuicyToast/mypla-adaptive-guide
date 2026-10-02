@@ -30,6 +30,7 @@ from backend.services.ai_service import AIService, export_for_myrpg
 from backend.services.ai_errors import (
     AIConfigurationError,
     AIProviderUnavailableError,
+    AIRateLimitedError,
     InvalidTaskDraftError,
 )
 from backend.services.assumptions import AssumptionService
@@ -78,12 +79,14 @@ def health() -> dict[str, Any]:
     url = os.getenv("SUPABASE_URL")
     publishable_key = os.getenv("SUPABASE_PUBLISHABLE_KEY")
     configured = bool(url and publishable_key)
+    openrouter_configured = bool(os.getenv("OPENROUTER_API_KEY", "").strip())
     return {
         "status": "ok",
         "service": "mypla-api",
         "storageMode": "supabase" if configured else "memory",
         "persistent": configured,
         "supabaseConfigured": configured,
+        "openRouterConfigured": openrouter_configured,
         "authentication": "Supabase user token required for Supabase-backed requests",
     }
 
@@ -174,6 +177,11 @@ def parse_task(payload: TaskParseRequest, context: Context) -> dict[str, Any]:
         raise HTTPException(
             status_code=503,
             detail="Natural-language task parsing is not configured. Use guided task entry instead.",
+        ) from exc
+    except AIRateLimitedError as exc:
+        raise HTTPException(
+            status_code=429,
+            detail="The task parser is temporarily rate limited. Your task was not saved; try again later or use guided task entry.",
         ) from exc
     except AIProviderUnavailableError as exc:
         raise HTTPException(

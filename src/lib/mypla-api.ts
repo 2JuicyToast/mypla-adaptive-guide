@@ -24,6 +24,8 @@ export interface ApiHealth {
   status: string;
   storageMode: "memory" | "supabase";
   persistent: boolean;
+  supabaseConfigured: boolean;
+  openRouterConfigured: boolean;
 }
 
 export interface ApiAssumption {

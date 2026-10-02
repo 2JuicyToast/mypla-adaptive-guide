@@ -6,6 +6,7 @@ import pytest
 from backend.services.ai_errors import (
     AIConfigurationError,
     AIProviderUnavailableError,
+    AIRateLimitedError,
     InvalidTaskDraftError,
 )
 from backend.services.ai_service import AIService
@@ -71,9 +72,13 @@ def test_openrouter_returns_a_strict_structured_draft_using_only_task_text():
     assert captured["request"].headers["authorization"] == "Bearer unit-test-key"
     assert body["model"] == DEFAULT_OPENROUTER_MODEL
     assert body["provider"] == {"require_parameters": True}
+    assert body["max_tokens"] == 8192
     assert body["response_format"]["type"] == "json_schema"
     assert body["response_format"]["json_schema"]["strict"] is True
     assert body["response_format"]["json_schema"]["schema"]["additionalProperties"] is False
+    assert body["response_format"]["json_schema"]["schema"]["properties"]["actions"]["maxItems"] == 1
+    assert len(body["messages"]) == 2
+    assert body["messages"][0]["role"] == "system"
     assert body["messages"][-1] == {
         "role": "user",
         "content": "Physics lab due October 8, 2026, about two hours, and important.",
@@ -139,13 +144,13 @@ def test_malformed_model_json_is_rejected_without_returning_raw_provider_content
     assert "not json" not in str(raised.value)
 
 
-def test_provider_errors_and_rate_limits_become_safe_unavailable_errors():
+def test_provider_errors_become_safe_unavailable_errors():
     service = AIService(
         OpenRouterTaskParser(
             api_key="unit-test-key",
             http_client=mock_client(
                 lambda _request: httpx.Response(
-                    429,
+                    503,
                     json={"error": {"message": "upstream diagnostic text"}},
                 )
             ),
@@ -156,6 +161,26 @@ def test_provider_errors_and_rate_limits_become_safe_unavailable_errors():
         service.parse_task("A synthetic task.")
 
     assert "upstream diagnostic text" not in str(raised.value)
+
+
+def test_provider_rate_limit_has_a_distinct_safe_error():
+    service = AIService(
+        OpenRouterTaskParser(
+            api_key="unit-test-key",
+            http_client=mock_client(
+                lambda _request: httpx.Response(
+                    429,
+                    json={"error": {"message": "upstream rate-limit diagnostic"}},
+                )
+            ),
+        )
+    )
+
+    with pytest.raises(AIRateLimitedError) as raised:
+        service.parse_task("A synthetic task.")
+
+    assert "upstream rate-limit diagnostic" not in str(raised.value)
+    assert "rate limited" in str(raised.value)
 
 
 def test_missing_openrouter_key_fails_before_making_a_request(monkeypatch):
