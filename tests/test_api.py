@@ -9,6 +9,9 @@ from backend.services.ai_errors import (
     AIConfigurationError,
     AIProviderUnavailableError,
     AIRateLimitedError,
+    IncompleteStructuredOutputError,
+    InvalidTaskDraftError,
+    MalformedStructuredOutputError,
 )
 
 
@@ -193,6 +196,43 @@ def test_natural_language_endpoint_distinguishes_rate_limits_safely(client, monk
     assert "rate limited" in response.json()["detail"]
     assert "upstream rate-limit diagnostics" not in response.text
     assert "Your task was not saved" in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    ("error", "status", "message"),
+    [
+        (
+            IncompleteStructuredOutputError("private completion fragment"),
+            502,
+            "MyPLA AI received an incomplete response. Try again.",
+        ),
+        (
+            MalformedStructuredOutputError("private malformed content"),
+            422,
+            "MyPLA AI returned an invalid task draft. Try again.",
+        ),
+        (
+            InvalidTaskDraftError("private schema details"),
+            422,
+            "MyPLA AI returned an invalid task draft. Try again.",
+        ),
+    ],
+)
+def test_natural_language_endpoint_returns_specific_safe_draft_errors_without_saving(
+    client, monkeypatch, error, status, message
+):
+    before = len(client.get("/api/tasks").json())
+
+    def fail_parse(_text):
+        raise error
+
+    monkeypatch.setattr(main.ai_service, "parse_task", fail_parse)
+
+    response = client.post("/api/tasks/parse", json={"text": "A synthetic test task"})
+
+    assert response.status_code == status
+    assert response.json()["detail"] == message
+    assert len(client.get("/api/tasks").json()) == before
 
 
 def test_natural_language_endpoint_requires_supabase_auth_when_persistence_is_enabled(

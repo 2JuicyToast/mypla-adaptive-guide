@@ -31,7 +31,9 @@ from backend.services.ai_errors import (
     AIConfigurationError,
     AIProviderUnavailableError,
     AIRateLimitedError,
+    IncompleteStructuredOutputError,
     InvalidTaskDraftError,
+    MalformedStructuredOutputError,
 )
 from backend.services.assumptions import AssumptionService
 from backend.services.priority_engine import PriorityEngine
@@ -181,17 +183,27 @@ def parse_task(payload: TaskParseRequest, context: Context) -> dict[str, Any]:
     except AIRateLimitedError as exc:
         raise HTTPException(
             status_code=429,
-            detail="The task parser is temporarily rate limited. Your task was not saved; try again later or use guided task entry.",
+            detail="MyPLA AI is temporarily rate limited. Your task was not saved; try again later or use guided task entry.",
+        ) from exc
+    except IncompleteStructuredOutputError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="MyPLA AI received an incomplete response. Try again.",
+        ) from exc
+    except MalformedStructuredOutputError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="MyPLA AI returned an invalid task draft. Try again.",
         ) from exc
     except AIProviderUnavailableError as exc:
         raise HTTPException(
             status_code=503,
-            detail="The task parser is temporarily unavailable. Your task was not saved; try again or use guided task entry.",
+            detail="MyPLA AI is temporarily unavailable. Your task was not saved; try again or use guided task entry.",
         ) from exc
     except InvalidTaskDraftError as exc:
         raise HTTPException(
             status_code=422,
-            detail=str(exc),
+            detail="MyPLA AI returned an invalid task draft. Try again.",
         ) from exc
     return {
         "draft": result["draft"].model_dump(by_alias=True, mode="json"),

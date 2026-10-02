@@ -3,6 +3,28 @@ import { AlertCircle, ArrowDown, CheckCircle2, LoaderCircle, Sparkles } from "lu
 import { Button } from "@/components/ui/button";
 import type { TaskParseStatus } from "@/lib/task-parse-status";
 
+const failureMessages = {
+  unavailable: {
+    heading: "MyPLA AI is temporarily unavailable.",
+    description: "Your task was not saved. Try again or use guided entry.",
+  },
+  "rate-limited": {
+    heading: "MyPLA AI is temporarily rate limited.",
+    description: "Your task was not saved. Please try again shortly or use guided entry.",
+  },
+  incomplete: {
+    heading: "MyPLA AI received an incomplete response. Try again.",
+    description: "Your task was not saved. Please try again or use guided entry.",
+  },
+  "invalid-draft": {
+    heading: "MyPLA AI returned an invalid task draft. Try again.",
+    description: "Your task was not saved. Please try again or use guided entry.",
+  },
+} satisfies Record<
+  Extract<TaskParseStatus, "unavailable" | "rate-limited" | "incomplete" | "invalid-draft">,
+  { heading: string; description: string }
+>;
+
 export function TaskParseStatusCard({
   status,
   onRetry,
@@ -16,37 +38,30 @@ export function TaskParseStatusCard({
 }) {
   if (status === "idle") return null;
 
-  const isFailure = status === "unavailable" || status === "rate-limited";
+  const failure = failureMessages[status as keyof typeof failureMessages] ?? null;
+  const isFailure = failure !== null;
   const heading =
-    status === "preparing"
-      ? "Preparing your task…"
-      : status === "ready"
-        ? "MyPLA AI created a task draft"
-        : status === "rate-limited"
-          ? "MyPLA is temporarily rate limited."
-          : "MyPLA couldn’t prepare that task right now.";
+    failure?.heading ??
+    (status === "preparing" ? "Preparing your task…" : "MyPLA AI created a task draft");
   const description =
-    status === "preparing"
+    failure?.description ??
+    (status === "preparing"
       ? "Your request is in progress. Nothing is saved until you review and confirm the draft."
-      : status === "ready"
-        ? "Review what I understood before adding it to your plan."
-        : status === "rate-limited"
-          ? "Your task was not saved. Please try again shortly or use guided entry."
-          : "Your task was not saved. Try again or use guided entry.";
+      : "Review what I understood before adding it to your plan.");
   const tone =
     status === "ready"
       ? "border-primary/25 bg-primary/5"
-      : status === "unavailable"
+      : status === "unavailable" || status === "invalid-draft"
         ? "border-destructive/25 bg-destructive/5"
-        : status === "rate-limited"
+        : status === "rate-limited" || status === "incomplete"
           ? "border-amber-500/25 bg-amber-500/5"
           : "border-proposal/25 bg-proposal-muted/40";
   const iconTone =
     status === "ready"
       ? "bg-primary/10 text-primary"
-      : status === "unavailable"
+      : status === "unavailable" || status === "invalid-draft"
         ? "bg-destructive/10 text-destructive"
-        : status === "rate-limited"
+        : status === "rate-limited" || status === "incomplete"
           ? "bg-amber-500/10 text-amber-700 dark:text-amber-300"
           : "bg-proposal/10 text-proposal";
 

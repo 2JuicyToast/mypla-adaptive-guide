@@ -13,10 +13,14 @@ from backend.services.ai_errors import (
     AIConfigurationError,
     AIProviderUnavailableError,
     AIRateLimitedError,
+    IncompleteStructuredOutputError,
+    InvalidTaskDraftError,
+    MalformedStructuredOutputError,
 )
+from backend.services.ai_diagnostics import log_ai_parse_metadata
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_OPENROUTER_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"
+DEFAULT_OPENROUTER_MODEL = "openrouter/free"
 
 TASK_DRAFT_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -67,9 +71,9 @@ TASK_DRAFT_SCHEMA: dict[str, Any] = {
             "type": "string",
             "enum": ["high", "medium", "low"],
             "description": (
-                "Importance only: high for explicitly very, really, or pretty important/high "
-                "priority; low for explicitly low priority/not urgent; otherwise medium. Do not "
-                "calculate the final numeric priority score."
+                "Importance only: high when the user explicitly says important (including very, "
+                "really, or pretty important) or high priority; low for explicitly low priority/"
+                "not urgent; otherwise medium. Do not calculate the final numeric priority score."
             ),
         },
         "energyRequired": {
@@ -164,6 +168,14 @@ class OpenRouterTaskParser:
             timeout=httpx.Timeout(45.0, connect=8.0)
         )
 
+    @property
+    def selected_model(self) -> str:
+        return (
+            self._model
+            or os.getenv("OPENROUTER_MODEL")
+            or DEFAULT_OPENROUTER_MODEL
+        ).strip()
+
     def parse(self, text: str) -> dict[str, Any]:
         api_key = (
             self._api_key
@@ -175,11 +187,7 @@ class OpenRouterTaskParser:
                 "Natural-language task parsing is not configured."
             )
 
-        model = (
-            self._model
-            or os.getenv("OPENROUTER_MODEL")
-            or DEFAULT_OPENROUTER_MODEL
-        ).strip()
+        model = self.selected_model
         today = date.today().isoformat()
         system_prompt = f"""You convert the user's task-intake text into one clear, unsaved MyPLA task draft.
 Today's date is {today}. Use it only to resolve deadlines stated in the input.
@@ -191,7 +199,7 @@ Understand the task and extract its fields; do not copy the whole sentence into 
 - category: Use a normalized task type only when clear, such as Lab, Essay, Quiz, or Assignment. Otherwise return null.
 - dueDate: Return an ISO date for a stated deadline. Resolve relative dates from today's date. A named weekday is the next occurrence of that weekday. Return null when the date is genuinely unclear; do not put the deadline in the name.
 - estimatedMinutes: Preserve explicit durations (two hours = 120; 45 minutes = 45). If omitted, estimate a reasonable duration, including for phrases like "all afternoon". Do not put duration in the name.
-- priority: This is an importance input only. Use high for "very/really/pretty important" or "high priority", low for "low priority" or "not urgent", and medium when unclear. Do not calculate a numeric score.
+- priority: This is an importance input only. Use high for an explicit "important" or "high priority" statement (including "very/really/pretty important"), low for "low priority" or "not urgent", and medium when unclear. Do not calculate a numeric score.
 - energyRequired: Extract high or low only when the user explicitly indicates the energy or difficulty required; otherwise use medium.
 - actions: Return at most one concise, useful first step when the input supports one. It must not repeat the user's whole request. Examples: a physics lab → "Review the lab instructions"; an essay → "Open the essay prompt"; studying for a quiz → "Review the study material". Return an empty array when there is not enough context for a useful first step.
 
@@ -216,6 +224,19 @@ Do not invent a course, deadline, task type, or other factual detail. The submit
             "temperature": 0.1,
         }
 
+        for attempt in range(2):
+            try:
+                return self._request_draft(api_key, model, request_body)
+            except IncompleteStructuredOutputError:
+                if attempt == 1:
+                    raise
+        raise IncompleteStructuredOutputError(
+            "MyPLA AI received an incomplete response. Try again."
+        )
+
+    def _request_draft(
+        self, api_key: str, model: str, request_body: dict[str, Any]
+    ) -> dict[str, Any]:
         try:
             response = self._http_client.post(
                 f"{OPENROUTER_BASE_URL}/chat/completions",
@@ -226,24 +247,77 @@ Do not invent a course, deadline, task type, or other factual detail. The submit
                 json=request_body,
             )
             response.raise_for_status()
-            result = response.json()
-            content = result["choices"][0]["message"]["content"]
-            draft = json.loads(content) if isinstance(content, str) else content
         except httpx.HTTPStatusError as exc:
-            if exc.response.status_code == 429:
+            status = exc.response.status_code
+            log_ai_parse_metadata(model, http_status=status)
+            if status == 429:
                 raise AIRateLimitedError(
-                    "The task parser is temporarily rate limited."
-                ) from exc
+                    "MyPLA AI is temporarily rate limited. Try again shortly."
+                ) from None
             raise AIProviderUnavailableError(
-                "The task parser is temporarily unavailable. Your task was not saved."
-            ) from exc
-        except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
+                "MyPLA AI is temporarily unavailable."
+            ) from None
+        except httpx.HTTPError:
+            log_ai_parse_metadata(model)
             raise AIProviderUnavailableError(
-                "The task parser is temporarily unavailable. Your task was not saved."
-            ) from exc
+                "MyPLA AI is temporarily unavailable."
+            ) from None
+
+        try:
+            result = response.json()
+        except ValueError:
+            log_ai_parse_metadata(
+                model, http_status=response.status_code, json_decode_failed=True
+            )
+            raise MalformedStructuredOutputError(
+                "MyPLA AI returned an invalid task draft. Try again."
+            ) from None
+
+        choices = result.get("choices") if isinstance(result, dict) else None
+        choice = choices[0] if isinstance(choices, list) and choices else None
+        message = choice.get("message") if isinstance(choice, dict) else None
+        finish_reason = choice.get("finish_reason") if isinstance(choice, dict) else None
+        content = message.get("content") if isinstance(message, dict) else None
+        content_empty = not isinstance(content, str) or not content.strip()
+        log_kwargs = {
+            "http_status": response.status_code,
+            "finish_reason": finish_reason,
+            "content_empty": content_empty,
+        }
+
+        if finish_reason in ("length", "incomplete") or content_empty:
+            log_ai_parse_metadata(model, **log_kwargs)
+            raise IncompleteStructuredOutputError(
+                "MyPLA AI received an incomplete response. Try again."
+            )
+        if finish_reason not in (None, "stop"):
+            log_ai_parse_metadata(model, **log_kwargs)
+            raise IncompleteStructuredOutputError(
+                "MyPLA AI received an incomplete response. Try again."
+            )
+
+        try:
+            draft = json.loads(content)
+        except json.JSONDecodeError:
+            log_ai_parse_metadata(
+                model,
+                **log_kwargs,
+                json_decode_failed=True,
+            )
+            raise MalformedStructuredOutputError(
+                "MyPLA AI returned an invalid task draft. Try again."
+            ) from None
 
         if not isinstance(draft, dict):
-            raise AIProviderUnavailableError(
-                "The task parser returned an unreadable draft. Your task was not saved."
+            log_ai_parse_metadata(
+                model,
+                **log_kwargs,
+                json_decode_failed=False,
+                schema_validation_failed=True,
             )
+            raise InvalidTaskDraftError(
+                "MyPLA AI returned an invalid task draft. Try again."
+            )
+
+        log_ai_parse_metadata(model, **log_kwargs, json_decode_failed=False)
         return draft

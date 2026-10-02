@@ -17,5 +17,13 @@ class AIRateLimitedError(AIProviderUnavailableError):
     """The configured provider rejected a request because of rate limits."""
 
 
+class IncompleteStructuredOutputError(TaskParsingError):
+    """The provider completion ended before the structured output was complete."""
+
+
+class MalformedStructuredOutputError(TaskParsingError):
+    """The provider returned content that is not valid structured JSON."""
+
+
 class InvalidTaskDraftError(TaskParsingError):
     """The provider response did not validate as a MyPLA task draft."""

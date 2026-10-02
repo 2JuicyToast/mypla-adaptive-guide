@@ -1,0 +1,187 @@
+The AI is currently failing in the real app. I investigated the latest repository state and the problem appears to be upstream structured-output reliability rather than the React review flow.
+
+The latest live verification documented in `.mypla-foundation-progress.txt` shows:
+
+* Synthetic case 1 returned `AIProviderUnavailableError`
+* Synthetic case 2 returned `AIProviderUnavailableError`
+* Synthetic case 3 successfully returned a structured task draft
+* Earlier testing also showed provider completion-limit/truncation behavior
+
+Do not perform another broad parser rewrite.
+
+## 1. Make the OpenRouter model configurable with a more reliable free fallback
+
+Keep `OPENROUTER_MODEL` configurable, but change the default away from the single hard-coded Nemotron 3 Super free endpoint.
+
+Use OpenRouter's free router as the default:
+
+`openrouter/free`
+
+OpenRouter's free router is specifically designed to choose among currently available free models and filter for requested capabilities such as structured outputs.
+
+Keep an environment override so I can still set:
+
+`OPENROUTER_MODEL=<specific model>`
+
+in Replit Secrets/environment configuration.
+
+Do not hard-code a paid model.
+
+## 2. Preserve structured JSON output
+
+Keep:
+
+* `response_format.type = "json_schema"`
+* strict JSON schema
+* Python/Pydantic validation
+* `provider.require_parameters = true`
+
+The free router should only select a model/provider compatible with the required structured-output parameters.
+
+Do not remove structured output and replace it with free-form text parsing.
+
+## 3. Improve provider error classification
+
+The current parser collapses too many different failures into the same generic `AIProviderUnavailableError`.
+
+Inspect the OpenRouter response before raising the safe application error.
+
+Where safely available, distinguish at least:
+
+* HTTP 429 → `AIRateLimitedError`
+* provider HTTP/service failure → `AIProviderUnavailableError`
+* response exists but completion is incomplete/truncated → a distinct structured-output error
+* response exists but JSON cannot be decoded → a distinct malformed-output error
+* JSON decodes but fails Pydantic validation → existing `InvalidTaskDraftError`
+
+Do not expose API keys, hidden reasoning, or sensitive upstream diagnostics to the browser.
+
+Safe user-facing messages can be specific:
+
+* “MyPLA AI is temporarily rate limited.”
+* “MyPLA AI received an incomplete response. Try again.”
+* “MyPLA AI returned an invalid task draft. Try again.”
+* “MyPLA AI is temporarily unavailable.”
+
+## 4. Preserve useful diagnostics on the server side
+
+For development/debugging only, safely record non-sensitive metadata such as:
+
+* selected model
+* HTTP status
+* finish reason, if present
+* whether content was empty
+* whether JSON decoding failed
+* whether schema validation failed
+
+Do NOT log:
+
+* API keys
+* full user task text
+* hidden reasoning
+* personal account information
+* unnecessary raw provider responses
+
+The current task text privacy boundary must remain intact.
+
+## 5. Add a controlled retry for incomplete provider output
+
+If OpenRouter returns a successful HTTP response but the model's completion is incomplete/truncated, consider one automatic retry only.
+
+Important:
+
+* Maximum one retry.
+* Do not loop.
+* Do not retry 429 responses.
+* Do not repeatedly retry provider outages.
+* Do not save anything automatically.
+* The retry must still use the same schema and confirmation architecture.
+
+If a retry succeeds, continue normally.
+
+If it fails, show the appropriate user-facing error.
+
+## 6. Keep the existing AI-human flow
+
+The intended flow remains:
+
+User enters natural language
+→ MyPLA AI processing state
+→ OpenRouter request
+→ structured draft
+→ “MyPLA AI created a task draft”
+→ “Review AI draft”
+→ editable TaskDraftReview
+→ user chooses “Add to my plan”
+→ Python creates task
+→ Python calculates deterministic priority
+→ Supabase persists it
+
+Never allow the LLM to create the task directly.
+
+## 7. Add tests for the actual failure modes
+
+Expand the Python tests with mocked OpenRouter responses covering:
+
+* successful structured response
+* HTTP 429
+* HTTP 503
+* empty content
+* truncated/incomplete completion
+* malformed JSON
+* valid JSON with invalid schema fields
+* successful retry after incomplete output
+* failed retry
+* no automatic task saving
+
+Also keep the existing extraction/normalization tests.
+
+## 8. Update the AI status UI
+
+Keep the existing polished progress panel.
+
+For a normal request:
+
+“Preparing your task…”
+
+Then, on success:
+
+“MyPLA AI created a task draft”
+
+Then:
+
+“Review AI draft”
+
+For recoverable provider failures, show the specific safe error and:
+
+“Try again”
+
+Do not simulate fake internal model reasoning.
+
+## 9. Verification
+
+Run:
+
+* Python tests
+* frontend tests
+* production build
+* scoped ESLint
+* `git diff --check`
+
+Then make one or two controlled live OpenRouter tests with synthetic, non-sensitive inputs.
+
+Use:
+
+“I have a physics lab due Thursday. It should take about two hours and it is important.”
+
+and:
+
+“I need to finish my English essay before Friday. It should take about an hour.”
+
+Do not save either task.
+
+Report whether the new default model/router produces valid structured drafts.
+
+Update `.mypla-foundation-progress.txt` with the result.
+
+Do not begin Phase 2.

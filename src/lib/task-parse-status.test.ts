@@ -11,3 +11,12 @@ test("keeps other API and network failures in the unavailable state", () => {
   expect(taskParseFailureStatus(new ApiRequestError(503, "upstream details"))).toBe("unavailable");
   expect(taskParseFailureStatus(new TypeError("network details"))).toBe("unavailable");
 });
+
+test("shows separate statuses for incomplete and invalid structured drafts", () => {
+  expect(taskParseFailureStatus(new ApiRequestError(502, "safe incomplete response"))).toBe(
+    "incomplete",
+  );
+  expect(taskParseFailureStatus(new ApiRequestError(422, "safe invalid draft"))).toBe(
+    "invalid-draft",
+  );
+});

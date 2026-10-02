@@ -7,6 +7,7 @@ from typing import Any, Protocol
 from pydantic import ValidationError
 
 from backend.models import EnergyLevel, Priority, TaskCreate
+from backend.services.ai_diagnostics import log_ai_parse_metadata
 from backend.services.ai_errors import InvalidTaskDraftError
 from backend.services.openrouter_task_parser import OpenRouterTaskParser
 
@@ -143,10 +144,18 @@ class AIService:
         try:
             normalized = _normalize_draft(self.parser.parse(cleaned), cleaned)
             draft = TaskCreate.model_validate(normalized)
-        except ValidationError as exc:
+        except ValidationError:
+            log_ai_parse_metadata(
+                getattr(self.parser, "selected_model", self.parser.provider_name),
+                schema_validation_failed=True,
+            )
             raise InvalidTaskDraftError(
-                "MyPLA could not validate the task draft. Try making the task details clearer."
-            ) from exc
+                "MyPLA AI returned an invalid task draft. Try again."
+            ) from None
+        log_ai_parse_metadata(
+            getattr(self.parser, "selected_model", self.parser.provider_name),
+            schema_validation_failed=False,
+        )
         return {
             "draft": draft,
             "message": "Review or edit this task draft. Nothing is saved until you add it to your plan.",
