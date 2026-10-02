@@ -1,0 +1,231 @@
+Continue from the current MyPLA Phase 1 AI implementation.
+
+Do NOT add new AI capabilities.
+
+Do NOT add memory, tools, agent loops, embeddings, vector databases, scheduling intelligence, autonomous actions, or Phase 2 behavior.
+
+The current natural-language task parser is already connected to OpenRouter/Nemotron and the task draft confirmation architecture is correct.
+
+## Important existing behavior
+
+Keep:
+
+```text
+Natural-language input
+↓
+OpenRouter / Nemotron
+↓
+validated unsaved draft
+↓
+TaskDraftReview
+↓
+user approval
+↓
+TaskCreate
+↓
+PriorityEngine
+↓
+Supabase
+```
+
+The AI must NOT automatically save a task.
+
+The endpoint must continue returning `saved: false`.
+
+## 1. Improve the natural-language task parsing experience
+
+When the user clicks:
+
+```text
+Prepare task draft
+```
+
+show a visible AI processing state while the request is in progress.
+
+The UI should feel like MyPLA is actively working, but do NOT expose hidden model reasoning or chain-of-thought.
+
+Use truthful product-level status messages such as:
+
+```text
+Preparing your task…
+Understanding the details…
+Checking the deadline and estimate…
+Building your draft…
+Validating the draft…
+Draft ready
+```
+
+These are UI status indicators, not model reasoning.
+
+Do not claim a stage has completed unless the corresponding application event has actually occurred.
+
+## 2. Create a dedicated AI processing UI
+
+Add a polished MyPLA AI status component near the task-entry area.
+
+It should include:
+
+* MyPLA/AI indicator
+* animated loading state
+* current status text
+* accessible `role="status"`
+* graceful error state
+
+Example visual direction:
+
+```text
+✦ MyPLA AI
+
+Preparing your task…
+
+● Understanding the details
+○ Checking the deadline
+○ Building your draft
+```
+
+Use the existing visual language of the application.
+
+Do not redesign the whole interface.
+
+## 3. Make actual application stages truthful
+
+Where practical, connect status changes to real application events:
+
+```text
+request started
+→ provider response received
+→ JSON parsed
+→ Pydantic validation passed
+→ draft ready
+```
+
+The frontend should not pretend the model performed specific internal reasoning.
+
+At minimum, the UI should distinguish:
+
+```text
+Preparing
+Draft ready
+Unable to prepare draft
+Rate limited
+```
+
+## 4. Improve successful draft presentation
+
+When the AI succeeds, transition cleanly from:
+
+```text
+AI processing
+```
+
+to:
+
+```text
+Draft ready
+```
+
+Then display the existing `TaskDraftReview`.
+
+Keep the existing editable fields and confirmation behavior.
+
+The primary confirmation button should remain:
+
+```text
+Add to my plan
+```
+
+Do not rename it to imply the AI saved the task automatically.
+
+## 5. Improve failure behavior
+
+When the provider returns an error:
+
+Show a friendly message such as:
+
+```text
+MyPLA couldn't prepare that task right now.
+Your task was not saved.
+```
+
+Then provide:
+
+```text
+Try again
+Use guided entry
+```
+
+For a rate-limit response, distinguish it clearly:
+
+```text
+MyPLA is temporarily rate limited.
+Your task was not saved.
+Please try again shortly or use guided entry.
+```
+
+Do not expose raw OpenRouter diagnostics.
+
+## 6. Make the current flow clear to the user
+
+The UI should make this distinction obvious:
+
+```text
+Prepare task draft
+≠
+Save task
+```
+
+The user should understand:
+
+```text
+AI prepares
+→ I review
+→ I decide
+→ MyPLA saves
+```
+
+This is an important part of MyPLA's identity and human-in-the-loop design.
+
+## 7. Do not weaken the confirmation gate
+
+Never automatically call `/api/tasks` immediately after `/api/tasks/parse`.
+
+Only call task creation when the user explicitly clicks:
+
+```text
+Add to my plan
+```
+
+## 8. Testing
+
+Run:
+
+```text
+bun run build
+python3 -m pytest -q
+```
+
+Add frontend tests where appropriate for:
+
+* loading state
+* successful draft state
+* provider failure
+* rate-limit state
+* confirmation still required
+
+## 9. Progress file
+
+Update:
+
+```text
+.mypla-foundation-progress.txt
+```
+
+with the UX changes and verification results.
+
+Do not claim real AI behavior was verified unless a real provider request succeeded.
+
+## Stop condition
+
+Stop after the Phase 1 task-parsing experience is polished.
+
+Do not continue into additional AI capabilities.
