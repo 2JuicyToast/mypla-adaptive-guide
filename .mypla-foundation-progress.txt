@@ -81,3 +81,19 @@ STILL UNVERIFIED
 - The signed-in parsing, CTA scroll/focus, editable confirmation, and successful-create reset flow was not interactively exercised because the preview browser has no authenticated test account.
 - Cases 1 and 2 did not return structured drafts, so their live title, deadline, estimate, priority, category, and first-action extraction remain unverified. Case 3 returned a concise title and no invented course/date/action; possible issues to review are the redundant “Class” in its title and a null category despite “homework” being stated. Its 60-minute estimate is plausible but inferred. No parser changes were made after this check.
 - Authenticated Supabase persistence still depends on the project's migration being applied and was not tested in this update.
+
+LATEST LIVE VERIFICATION — 2026-10-02
+
+| Test | Result | Key finding |
+| --- | --- | --- |
+| Physics lab live parse | PASS | HTTP 200 from `openrouter.ai`; selected `openrouter/free` via the OpenRouter parser. Structured JSON parsed and `TaskCreate` validation passed: Physics lab, 2026-10-08, 120 minutes, high, Physics/Lab. First action was “Physics lab” (not actionable). Not saved. |
+| English essay live parse | PASS | HTTP 200 from `openrouter.ai`; selected `openrouter/free`. Structured JSON parsed and `TaskCreate` validation passed: English essay, 2026-10-02, 60 minutes, medium, no course, Essay, “Review the essay prompt.” The date is the current Friday despite “before Friday.” Not saved. |
+| OpenRouter error handling | PASS | Python/API tests cover 429, provider unavailable, incomplete output and retry, malformed JSON, and invalid drafts. Error cases were not induced against the live provider. |
+| Existing Python tests | PASS | 48 passed; one existing Starlette/httpx deprecation warning. |
+| Frontend tests | PASS | `bun test`: 3 passed. |
+| Production build | PASS | `bun run build`; existing Vite path-plugin and large-client-chunk advisories. |
+| Scoped ESLint | PASS | No warnings or errors. |
+| `git diff --check` | PASS | No whitespace errors. |
+
+Both live requests used the existing `AIService`/`OpenRouterTaskParser` directly and returned drafts without invoking task creation or Supabase writes. No parser changes were made. The actual downstream model/provider selected behind `openrouter/free` was not available in the parser result metadata. Live signed-in Supabase persistence remains unverified; configuring its Secrets does not confirm that the migration is applied.
+- After adding the requested Secrets, restarted `Start application`; `/api/health` reported `storageMode=supabase`, `supabaseConfigured=true`, and `openRouterConfigured=true`. The preview rendered the sign-in page. This confirms runtime configuration and page loading, not authenticated Supabase reads or writes.
