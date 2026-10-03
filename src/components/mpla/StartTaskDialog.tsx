@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { TaskMetaRow } from "@/components/mpla/TaskMeta";
+import { TaskBreakdownReviewDialog } from "@/components/mpla/TaskBreakdownReviewDialog";
 import {
   advanceTaskSession,
   chooseTaskSessionContext,
@@ -28,7 +29,7 @@ import {
   type TaskSession,
   type TaskSessionContext,
 } from "@/lib/task-session";
-import type { Task } from "@/lib/mpla-types";
+import type { Proposal, Task, TaskBreakdownAction } from "@/lib/mpla-types";
 import { cn } from "@/lib/utils";
 
 const contextChoices: { value: TaskSessionContext; label: string; acknowledgement?: string }[] = [
@@ -58,6 +59,10 @@ export function StartTaskDialog({
   onOpenChange,
   onCompleteAction,
   onStuck,
+  onRequestBreakdown,
+  onApproveBreakdown,
+  onAdjustBreakdown,
+  onRejectBreakdown,
 }: {
   session: TaskSession | null;
   task: Task | null;
@@ -65,16 +70,32 @@ export function StartTaskDialog({
   onOpenChange: (open: boolean) => void;
   onCompleteAction: (taskId: string, actionId: string) => Promise<Task>;
   onStuck: (task: Task) => void;
+  onRequestBreakdown: (taskId: string) => Promise<Proposal>;
+  onApproveBreakdown: (proposalId: string) => Promise<Task | null>;
+  onAdjustBreakdown: (
+    proposalId: string,
+    actions: TaskBreakdownAction[],
+  ) => Promise<Task | null>;
+  onRejectBreakdown: (proposalId: string) => Promise<void>;
 }) {
   const [savingAction, setSavingAction] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [breakdownNotice, setBreakdownNotice] = useState(false);
+  const [breakdownProposal, setBreakdownProposal] = useState<Proposal | null>(null);
+  const [breakdownBusy, setBreakdownBusy] = useState(false);
+  const [breakdownOperation, setBreakdownOperation] = useState<
+    "request" | "approve" | "adjust" | "reject" | null
+  >(null);
+  const [breakdownError, setBreakdownError] = useState<string | null>(null);
   const sessionRef = useRef(session);
   sessionRef.current = session;
   const open = session !== null;
 
   function close() {
-    setBreakdownNotice(false);
+    if (breakdownBusy) return;
+    if (breakdownProposal) {
+      void rejectBreakdown();
+      return;
+    }
     setActionError(null);
     sessionRef.current = null;
     onSessionChange(null);
@@ -82,11 +103,114 @@ export function StartTaskDialog({
   }
 
   function openStuckFlow() {
-    if (!task) return;
-    setBreakdownNotice(false);
+    if (!task || breakdownBusy) return;
     setActionError(null);
     sessionRef.current = null;
     onStuck(task);
+  }
+
+  async function requestBreakdown() {
+    if (!task || !session || breakdownBusy) return;
+    setBreakdownBusy(true);
+    setBreakdownOperation("request");
+    setBreakdownError(null);
+    try {
+      const proposal = await onRequestBreakdown(task.id);
+      const currentSession = sessionRef.current;
+      if (
+        currentSession?.taskId !== session.taskId ||
+        currentSession.startedAt !== session.startedAt
+      ) {
+        await onRejectBreakdown(proposal.id);
+        return;
+      }
+      setBreakdownProposal(proposal);
+    } catch (error) {
+      setBreakdownError(
+        error instanceof Error
+          ? error.message
+          : "MyPLA could not create a breakdown right now. Your task was not changed.",
+      );
+    } finally {
+      setBreakdownBusy(false);
+      setBreakdownOperation(null);
+    }
+  }
+
+  async function approveBreakdown() {
+    if (!breakdownProposal || breakdownBusy) return;
+    setBreakdownBusy(true);
+    setBreakdownOperation("approve");
+    setBreakdownError(null);
+    try {
+      const updatedTask = await onApproveBreakdown(breakdownProposal.id);
+      setBreakdownProposal(null);
+      const currentSession = sessionRef.current;
+      if (currentSession?.taskId !== breakdownProposal.relatedTaskId) return;
+      if (updatedTask) {
+        onSessionChange(advanceTaskSession(currentSession, updatedTask));
+      } else {
+        onSessionChange(null);
+        onOpenChange(false);
+      }
+    } catch (error) {
+      setBreakdownError(
+        error instanceof Error
+          ? error.message
+          : "The breakdown could not be approved. Your task was not changed.",
+      );
+    } finally {
+      setBreakdownBusy(false);
+      setBreakdownOperation(null);
+    }
+  }
+
+  async function adjustBreakdown(actions: TaskBreakdownAction[]) {
+    if (!breakdownProposal || breakdownBusy) return;
+    setBreakdownBusy(true);
+    setBreakdownOperation("adjust");
+    setBreakdownError(null);
+    try {
+      const updatedTask = await onAdjustBreakdown(breakdownProposal.id, actions);
+      setBreakdownProposal(null);
+      const currentSession = sessionRef.current;
+      if (currentSession?.taskId !== breakdownProposal.relatedTaskId) return;
+      if (updatedTask) {
+        onSessionChange(advanceTaskSession(currentSession, updatedTask));
+      } else {
+        onSessionChange(null);
+        onOpenChange(false);
+      }
+    } catch (error) {
+      setBreakdownError(
+        error instanceof Error
+          ? error.message
+          : "The adjusted breakdown could not be saved. Your task was not changed.",
+      );
+    } finally {
+      setBreakdownBusy(false);
+      setBreakdownOperation(null);
+    }
+  }
+
+  async function rejectBreakdown() {
+    if (!breakdownProposal || breakdownBusy) return;
+    setBreakdownBusy(true);
+    setBreakdownOperation("reject");
+    setBreakdownError(null);
+    try {
+      await onRejectBreakdown(breakdownProposal.id);
+      setBreakdownProposal(null);
+    } catch (error) {
+      setBreakdownError(
+        error instanceof Error
+          ? error.message
+          : "The breakdown could not be dismissed. Your task was not changed.",
+      );
+    } finally {
+      setBreakdownBusy(false);
+      setBreakdownOperation(null);
+    }
   }
 
   async function completeCurrentAction() {
@@ -115,6 +239,7 @@ export function StartTaskDialog({
   const selectedChoice = contextChoices.find((choice) => choice.value === session?.context);
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
       <DialogContent className="max-h-[min(90dvh,760px)] overflow-y-auto border-border/80 bg-background p-0 shadow-[var(--shadow-lift)] sm:max-w-xl">
         {session ? (
@@ -212,22 +337,31 @@ export function StartTaskDialog({
                       Got it. MyPLA can help you figure out the first step
                     </p>
                   </div>
-                  {breakdownNotice ? (
+                  {breakdownError && !breakdownProposal ? (
                     <p
-                      role="status"
-                      className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground"
+                      role="alert"
+                      className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive"
                     >
-                      Breaking this down isn't available here yet. Your task hasn't been changed.
+                      {breakdownError}
                     </p>
                   ) : null}
                   <div className="grid gap-2 sm:grid-cols-3">
-                    <Button onClick={() => onSessionChange(startWithCurrentAction(session))}>
+                    <Button
+                      disabled={breakdownBusy}
+                      onClick={() => onSessionChange(startWithCurrentAction(session))}
+                    >
                       Start with the current action
                     </Button>
-                    <Button variant="outline" onClick={() => setBreakdownNotice(true)}>
-                      Break this down
+                    <Button
+                      variant="outline"
+                      disabled={breakdownBusy || !task}
+                      onClick={() => void requestBreakdown()}
+                    >
+                      {breakdownOperation === "request"
+                        ? "Creating breakdown…"
+                        : "Break this down"}
                     </Button>
-                    <Button variant="ghost" onClick={openStuckFlow}>
+                    <Button variant="ghost" disabled={breakdownBusy} onClick={openStuckFlow}>
                       I'm still stuck
                     </Button>
                   </div>
@@ -312,6 +446,22 @@ export function StartTaskDialog({
         ) : null}
       </DialogContent>
     </Dialog>
+      {breakdownProposal && task ? (
+        <TaskBreakdownReviewDialog
+          open
+          task={task}
+          proposal={breakdownProposal}
+          busy={breakdownBusy}
+          error={breakdownError}
+          onApprove={() => void approveBreakdown()}
+          onAdjust={(actions) => void adjustBreakdown(actions)}
+          onNotNow={() => void rejectBreakdown()}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) void rejectBreakdown();
+          }}
+        />
+      ) : null}
+    </>
   );
 }
 

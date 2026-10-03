@@ -14,6 +14,7 @@ from backend.models import (
     utc_now,
 )
 from backend.services.task_manager import TaskManager
+from backend.services.task_breakdown import InvalidTaskBreakdownError, validate_task_breakdown
 
 Repository = MemoryRepository | SupabaseRepository
 
@@ -82,7 +83,27 @@ class ProposalService:
             except ValidationError as exc:
                 raise HTTPException(status_code=422, detail="The proposed schedule block is invalid.") from exc
             self.repository.save_schedule_block(block)
-        elif proposal.kind in {"reschedule", "priority-change", "task-breakdown", "schedule-block"}:
+        elif proposal.kind == "task-breakdown":
+            task_id = proposal.related_task_id
+            patch = changes.get("taskPatch")
+            if not task_id or not isinstance(patch, dict) or set(patch) != {"actions"}:
+                raise HTTPException(
+                    status_code=422,
+                    detail="The proposal does not include a valid task breakdown.",
+                )
+            task = self.tasks.find_task(task_id)
+            try:
+                breakdown = validate_task_breakdown(
+                    {"actions": patch["actions"]},
+                    task,
+                )
+            except InvalidTaskBreakdownError as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail="The proposed task breakdown is invalid.",
+                ) from exc
+            self.tasks.apply_task_breakdown(task_id, breakdown.actions)
+        elif proposal.kind in {"reschedule", "priority-change"}:
             task_id = proposal.related_task_id or changes.get("taskId")
             patch = changes.get("taskPatch")
             if not task_id or not isinstance(patch, dict):

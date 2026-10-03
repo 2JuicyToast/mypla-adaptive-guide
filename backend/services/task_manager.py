@@ -5,8 +5,9 @@ from datetime import date, datetime, timezone
 from fastapi import HTTPException
 
 from backend.database.repository import MemoryRepository, SupabaseRepository
-from backend.models import Task, TaskCreate, TaskPatch, TaskStatus, utc_now
+from backend.models import Task, TaskAction, TaskCreate, TaskPatch, TaskStatus, utc_now
 from backend.services.priority_engine import PriorityEngine
+from backend.services.task_breakdown import TaskBreakdownAction
 
 Repository = MemoryRepository | SupabaseRepository
 
@@ -73,6 +74,45 @@ class TaskManager:
     def get_next_action(self, task_id: str) -> dict | None:
         task = self.find_task(task_id)
         return next((action.model_dump(by_alias=True) for action in task.actions if not action.done), None)
+
+    def apply_task_breakdown(
+        self, task_id: str, actions: list[TaskBreakdownAction]
+    ) -> Task:
+        """Replace only unfinished actions while retaining completed records unchanged."""
+        task = self.find_task(task_id)
+        if task.status == TaskStatus.DONE:
+            raise HTTPException(
+                status_code=409,
+                detail="A completed task cannot be broken down.",
+            )
+        if not actions:
+            raise HTTPException(
+                status_code=422,
+                detail="A task breakdown must include at least one action.",
+            )
+
+        updated_task = task.model_copy(deep=True)
+        ordered_actions = sorted(
+            updated_task.actions, key=lambda action: action.position
+        )
+        completed_actions = [action for action in ordered_actions if action.done]
+        next_position = max(
+            (action.position for action in updated_task.actions),
+            default=-1,
+        ) + 1
+        proposed_actions = [
+            TaskAction(
+                label=action.label,
+                description=action.description,
+                estimatedMinutes=action.estimated_minutes,
+                energyRequired=action.energy_required,
+                position=next_position + index,
+                parentActionId=None,
+            )
+            for index, action in enumerate(actions)
+        ]
+        updated_task.actions = [*completed_actions, *proposed_actions]
+        return self.repository.save_task(updated_task)
 
     def reorder_tasks(self, ordered_ids: list[str]) -> list[Task]:
         tasks = [self.find_task(task_id) for task_id in ordered_ids]

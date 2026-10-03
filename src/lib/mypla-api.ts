@@ -101,6 +101,12 @@ export function getTasks() {
   return request<Task[]>("/api/tasks");
 }
 
+export function createTaskBreakdown(taskId: string) {
+  return request<Proposal>(`/api/tasks/${encodeURIComponent(taskId)}/breakdown`, {
+    method: "POST",
+  });
+}
+
 export function getProposals() {
   return request<Proposal[]>("/api/proposals");
 }

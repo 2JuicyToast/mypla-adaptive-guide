@@ -15,14 +15,27 @@ export interface TaskAction {
   id: string;
   label: string;
   done: boolean;
+  description?: string | null;
   /** Minutes the assistant estimates for this single action. */
-  estimatedMinutes?: number;
+  estimatedMinutes?: number | null;
+  energyRequired?: EnergyLevel | null;
+  position?: number;
+  parentActionId?: string | null;
+}
+
+export interface TaskBreakdownAction {
+  label: string;
+  description?: string | null;
+  estimatedMinutes?: number | null;
+  energyRequired?: EnergyLevel | null;
 }
 
 export interface Task {
   id: string;
   name: string;
+  description?: string | null;
   course?: string;
+  category?: string | null;
   priority: Priority;
   /** ISO date string. */
   dueDate?: string | null;

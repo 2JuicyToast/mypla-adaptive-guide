@@ -18,6 +18,7 @@ import { useMyPlaTasks } from "@/hooks/use-mpla-tasks";
 import { useMyPlaPlanningData } from "@/hooks/use-mypla-planning-data";
 import { nextUnfinishedAction } from "@/components/mpla/TaskCard";
 import {
+  createTaskBreakdown,
   parseTask,
   resolveProposal,
   respondToAssumption,
@@ -25,7 +26,7 @@ import {
   type TaskDraft,
 } from "@/lib/mypla-api";
 import type { TaskParseStatus } from "@/lib/task-parse-status";
-import type { Task } from "@/lib/mpla-types";
+import type { Task, TaskBreakdownAction } from "@/lib/mpla-types";
 import { createTaskSession, endTaskSession, type TaskSession } from "@/lib/task-session";
 
 export const Route = createFileRoute("/")({
@@ -56,7 +57,16 @@ function HomeDashboard() {
   const [savingDraft, setSavingDraft] = useState(false);
   const [parseStatus, setParseStatus] = useState<TaskParseStatus>("idle");
   const draftReviewRef = useRef<HTMLElement | null>(null);
-  const { tasks, mode, notice, setNotice, addTask, finishTask, finishAction } = useMyPlaTasks();
+  const {
+    tasks,
+    mode,
+    notice,
+    setNotice,
+    addTask,
+    finishTask,
+    finishAction,
+    refresh: refreshTasks,
+  } = useMyPlaTasks();
   const planningData = useMyPlaPlanningData();
   const current = tasks.filter((task) => task.status === "current");
 
@@ -100,14 +110,70 @@ function HomeDashboard() {
     proposalId: string,
     decision: "approve" | "reject" | "adjust",
     changes?: Record<string, unknown>,
-  ) {
+  ): Promise<boolean> {
     try {
       const proposal = await resolveProposal(proposalId, decision, changes);
+      if (proposal.kind === "task-breakdown") {
+        const refreshedTasks =
+          decision === "reject" ? [] : await refreshTasks();
+        await planningData.refresh().catch(() => undefined);
+        if (decision === "reject") {
+          setNotice("Breakdown set aside. Your task was not changed.");
+          return true;
+        }
+        const updatedTask = refreshedTasks.find(
+          (task) => task.id === proposal.relatedTaskId,
+        );
+        const nextAction = updatedTask?.actions.find((action) => !action.done);
+        setNotice(
+          nextAction
+            ? `Breakdown ${proposal.status}. Your next action is “${nextAction.label}”.`
+            : `Proposal ${proposal.status}; reload your plan if the task does not update.`,
+        );
+        return true;
+      }
       await planningData.refresh();
       setNotice(`Proposal ${proposal.status}.`);
+      return true;
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "The proposal could not be updated.");
+      return false;
     }
+  }
+
+  async function resolveTaskBreakdown(
+    proposalId: string,
+    decision: "approve" | "adjust" | "reject",
+    changes?: Record<string, unknown>,
+  ): Promise<Task | null> {
+    const proposal = await resolveProposal(proposalId, decision, changes);
+    if (decision === "reject") {
+      await planningData.refresh().catch(() => undefined);
+      setNotice("Breakdown set aside. Your task was not changed.");
+      return null;
+    }
+
+    const [latestTasks] = await Promise.all([
+      refreshTasks(),
+      planningData.refresh().catch(() => undefined),
+    ]);
+    const updatedTask = latestTasks.find(
+      (task) => task.id === proposal.relatedTaskId,
+    );
+    if (!updatedTask) {
+      setNotice(
+        `Breakdown ${proposal.status}, but MyPLA could not refresh the task. Reload your plan to see its new next action.`,
+      );
+      return null;
+    }
+
+    const nextAction = updatedTask.actions.find((action) => !action.done);
+    setNotice(
+      nextAction
+        ? `Breakdown ${proposal.status}. Your next action is “${nextAction.label}”.`
+        : `Breakdown ${proposal.status}.`,
+    );
+    return updatedTask;
   }
 
   return (
@@ -226,7 +292,9 @@ function HomeDashboard() {
             loading={planningData.loading}
             onApprove={(proposal) => void decideProposal(proposal.id, "approve")}
             onDecline={(proposal) => void decideProposal(proposal.id, "reject")}
-            onAdjust={(proposal, changes) => void decideProposal(proposal.id, "adjust", changes)}
+            onAdjust={(proposal, changes) =>
+              decideProposal(proposal.id, "adjust", changes)
+            }
           />
           <section className="space-y-3">
             <div>
@@ -276,6 +344,20 @@ function HomeDashboard() {
           const latest = tasks.find((item) => item.id === task.id) ?? task;
           setTaskSession(null);
           setStuckTask(latest);
+        }}
+        onRequestBreakdown={createTaskBreakdown}
+        onApproveBreakdown={(proposalId) =>
+          resolveTaskBreakdown(proposalId, "approve")
+        }
+        onAdjustBreakdown={(proposalId, actions: TaskBreakdownAction[]) =>
+          resolveTaskBreakdown(proposalId, "adjust", {
+            taskPatch: {
+              actions,
+            },
+          })
+        }
+        onRejectBreakdown={async (proposalId) => {
+          await resolveTaskBreakdown(proposalId, "reject");
         }}
       />
       <AssumptionCheckDialog

@@ -18,7 +18,10 @@ export function AiSuggestionPanel({
   loading?: boolean;
   onApprove?: (proposal: Proposal) => void;
   onDecline?: (proposal: Proposal) => void;
-  onAdjust?: (proposal: Proposal, changes: Record<string, unknown>) => void;
+  onAdjust?: (
+    proposal: Proposal,
+    changes: Record<string, unknown>,
+  ) => void | boolean | Promise<void | boolean>;
 }) {
   return (
     <section className="surface-panel p-5">

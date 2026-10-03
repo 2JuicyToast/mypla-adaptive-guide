@@ -19,14 +19,15 @@ export function useMyPlaTasks() {
   const [mode, setMode] = useState<TaskDataMode>("connecting");
   const [notice, setNotice] = useState<string | null>(null);
 
-  const loadTasks = useCallback(async (isActive: () => boolean = () => true) => {
+  const loadTasks = useCallback(
+    async (isActive: () => boolean = () => true): Promise<Task[]> => {
     let health: ApiHealth;
     try {
       health = await getApiHealth();
-      if (!isActive()) return;
+      if (!isActive()) return [];
       setMode(health.storageMode);
     } catch (error) {
-      if (!isActive()) return;
+      if (!isActive()) return [];
       setMode("sample");
       setTasks(mockTasks);
       setNotice(
@@ -34,16 +35,17 @@ export function useMyPlaTasks() {
           error instanceof Error ? error.message : "The request failed."
         }`,
       );
-      return;
+      return mockTasks;
     }
 
     try {
       const latestTasks = await getTasks();
-      if (!isActive()) return;
+      if (!isActive()) return [];
       setTasks(latestTasks);
       setNotice(null);
+      return latestTasks;
     } catch (error) {
-      if (!isActive()) return;
+      if (!isActive()) return [];
       setTasks(mockTasks);
       setNotice(
         health.persistent
@@ -54,11 +56,14 @@ export function useMyPlaTasks() {
               error instanceof Error ? error.message : "The request failed."
             }`,
       );
+      return mockTasks;
     }
-  }, []);
+    },
+    [],
+  );
 
-  async function refresh() {
-    await loadTasks();
+  async function refresh(): Promise<Task[]> {
+    return loadTasks();
   }
 
   useEffect(() => {

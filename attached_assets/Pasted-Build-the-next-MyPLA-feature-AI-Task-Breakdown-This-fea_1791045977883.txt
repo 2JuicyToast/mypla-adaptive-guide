@@ -1,0 +1,640 @@
+Build the next MyPLA feature: **AI Task Breakdown**.
+
+This feature should solve the current limitation where a task often has only one useful action. MyPLA should be able to turn a broad task into a practical sequence of smaller actions while keeping the user in control.
+
+Do not modify the Profile section.
+
+Do not change the working Phase 1 natural-language task parser or its OpenRouter configuration. Add task breakdown as a separate AI capability.
+
+Do not begin scheduling personalization, Coach Memory, resource recommendations, or MyRPG work in this task.
+
+---
+
+# Goal
+
+The intended flow is:
+
+Task
+→ Start Task
+→ “I’m not sure how to start”
+→ “Break this down”
+→ AI creates a proposed sequence of actionable steps
+→ user reviews the proposed breakdown
+→ user can approve, edit, or reject it
+→ only then are task actions changed
+
+The result should give MyPLA enough real actions that the normal task experience can advance one meaningful step at a time.
+
+For example:
+
+**English Essay**
+
+1. Read the assignment prompt
+2. Identify the main question the essay needs to answer
+3. Choose the main argument
+4. Create a basic outline
+5. Find supporting evidence
+6. Write the introduction
+7. Draft the body paragraphs
+8. Write the conclusion
+9. Revise for clarity and requirements
+10. Proofread and submit
+
+The exact number should depend on the task. Do not force every task into ten steps.
+
+---
+
+# 1. Build a separate task-breakdown AI service
+
+Create a provider-neutral task breakdown service.
+
+Do not modify the existing task parser implementation.
+
+A reasonable structure is a separate service such as:
+
+`backend/services/openrouter_task_breakdown.py`
+
+and expose it through the existing `AIService`.
+
+The public AI boundary should remain provider-neutral.
+
+Conceptually:
+
+```text
+AIService.break_down_task(task)
+    ↓
+OpenRouter task breakdown provider
+    ↓
+strict structured response
+    ↓
+validated breakdown
+    ↓
+Proposal
+```
+
+The AI must never directly write to the database.
+
+---
+
+# 2. Structured AI output
+
+The breakdown response should contain a list of actionable steps.
+
+Each step may include:
+
+* label
+* optional description
+* optional estimated minutes
+* optional energy requirement
+
+Keep the first version FLAT.
+
+Do not build recursive/nested missions yet.
+
+The existing `parentActionId` field can remain available for the future hierarchy, but this first implementation should use:
+
+```text
+Task
+  → ordered actions
+```
+
+rather than pretending nested missions already exist.
+
+Return approximately **4–8 actions for most normal tasks**, but allow fewer or more when genuinely appropriate.
+
+Do not generate filler steps just to hit a number.
+
+---
+
+# 3. Prompt requirements
+
+The breakdown model should receive only the task information needed to break it down, such as:
+
+* task name
+* description
+* course/category when present
+* due date
+* estimated time
+* priority
+* energy requirement
+* current unfinished action(s)
+
+Do not send unrelated user information.
+
+The prompt should require:
+
+### Actions must be actionable
+
+Avoid vague items such as:
+
+* “Work on the essay”
+* “Do the physics lab”
+* “Study”
+* “Finish the project”
+
+Prefer observable actions such as:
+
+* “Read the lab instructions”
+* “Write down the variables”
+* “Collect the required measurements”
+* “Draft the introduction”
+
+### Actions should form a logical sequence
+
+The order should represent a realistic path toward completion.
+
+### Avoid duplication
+
+Do not repeat the task title as an action.
+
+Do not generate multiple actions that mean essentially the same thing.
+
+### Preserve known work
+
+If the task already has useful unfinished actions, use them as context rather than blindly replacing them with duplicates.
+
+### Do not invent requirements
+
+The AI may decompose the task, but it should not invent assignment requirements, sources, deadlines, tools, or facts that were not provided.
+
+When uncertain, keep the action general rather than hallucinating specifics.
+
+---
+
+# 4. Create a task-breakdown proposal
+
+Use the existing proposal architecture.
+
+A breakdown should create:
+
+```text
+kind = "task-breakdown"
+```
+
+The proposal should contain:
+
+* title
+* rationale
+* related task ID
+* proposed actions
+* human-readable changes
+
+For example:
+
+Title:
+
+**“Break English Essay into smaller steps”**
+
+Rationale:
+
+**“This task is broad, so I broke it into smaller actions that can be completed one at a time.”**
+
+Human-readable changes could show:
+
+```text
+Current plan
+1 action
+
+Suggested plan
+7 actions
+```
+
+and then display the proposed actions individually.
+
+Do not make the wording sound like the AI knows the plan is definitely correct.
+
+Use language such as:
+
+**“Here is one way I would break this down.”**
+
+---
+
+# 5. Preserve completed actions
+
+Be careful not to erase progress.
+
+If the task already has completed actions, those completed actions must remain completed.
+
+A breakdown should operate on the unfinished portion of the task.
+
+Do not implement the breakdown by blindly replacing the entire action list and resetting every `done` flag.
+
+The deterministic Python layer should handle this.
+
+For example:
+
+```text
+Completed
+✓ Read assignment prompt
+
+AI proposed remaining plan
+2. Identify the main question
+3. Choose an argument
+4. Create an outline
+5. Draft the essay
+```
+
+The completed action remains untouched.
+
+If the current data model requires a small backend adjustment to accomplish this safely, make that adjustment rather than resetting completion state.
+
+---
+
+# 6. Connect “Break this down” from Start Task
+
+The existing `StartTaskDialog` currently has:
+
+**I’m not sure how to start**
+
+which leads to:
+
+* Start with the current action
+* Break this down
+* I’m still stuck
+
+The current **Break this down** button is only a placeholder.
+
+Make it functional.
+
+Flow:
+
+```text
+Break this down
+↓
+loading state
+↓
+AI breakdown request
+↓
+proposal returned
+↓
+review UI appears
+```
+
+Do not silently modify the task when the request finishes.
+
+---
+
+# 7. Breakdown review UI
+
+Create a polished MyPLA review component/dialog specifically for task breakdowns.
+
+Do not force the user to edit JSON.
+
+The user should see something like:
+
+**Here is one way I would break this down**
+
+1. Read the assignment prompt
+2. Identify the main question
+3. Choose the main argument
+4. Create an outline
+5. Draft the essay
+6. Revise the draft
+7. Proofread and submit
+
+Each action should be editable with a normal text input or equivalent UI.
+
+Allow the user to:
+
+* edit an action
+* remove an unnecessary action
+* add an action
+* reorder actions if practical
+
+Keep the first version simple and polished.
+
+Do not build a complicated drag-and-drop editor if a simpler reorder interaction is sufficient.
+
+---
+
+# 8. Human approval gate
+
+The user must explicitly choose one of:
+
+**Use this breakdown**
+
+**Adjust**
+
+**Not now**
+
+Nothing should be committed before approval.
+
+The final commit should continue through the existing proposal system.
+
+The architecture should remain:
+
+```text
+AI
+↓
+structured proposal
+↓
+user review
+↓
+approve/edit/reject
+↓
+Python commits
+```
+
+Do not let the AI directly call `TaskManager.update_task()`.
+
+Do not automatically save the AI response as permanent task actions.
+
+---
+
+# 9. Adjust behavior
+
+Use the existing proposal system's adjustment path, but make the UI friendly.
+
+When the user edits the proposed action list, send structured data back such as:
+
+```json
+{
+  "taskPatch": {
+    "actions": [
+      {
+        "label": "Read the assignment prompt"
+      },
+      {
+        "label": "Choose the main argument"
+      }
+    ]
+  }
+}
+```
+
+Do not require the user to understand JSON.
+
+The JSON should only be an internal representation.
+
+---
+
+# 10. After approval
+
+After successful approval:
+
+* refresh the task data
+* close the breakdown review
+* return the user to the task/start experience
+* show the newly generated next action
+* do not automatically mark anything complete
+
+The task should now have multiple ordered unfinished actions.
+
+The normal TaskCard behavior should continue showing only:
+
+**Next action**
+
+not the entire action list.
+
+This is important.
+
+The larger breakdown is underlying structure; the current UI remains focused.
+
+---
+
+# 11. Start Task integration
+
+After a successful breakdown, the user should be able to immediately see something like:
+
+**Your next action**
+
+> Read the assignment prompt
+
+Then:
+
+**Complete next action**
+
+or:
+
+**I’m stuck**
+
+The user should not be forced to look through the entire action list before starting.
+
+The breakdown review is where the larger plan is visible.
+
+---
+
+# 12. AI error handling
+
+Use the same principles as the existing Phase 1 parser.
+
+Handle:
+
+* missing OpenRouter configuration
+* rate limiting
+* provider unavailable
+* incomplete structured output
+* malformed JSON
+* invalid breakdown data
+
+Show honest user-facing messages.
+
+For example:
+
+**“MyPLA could not create a breakdown right now. Your task was not changed.”**
+
+Do not fabricate a breakdown locally and pretend it came from AI.
+
+A failure must leave the task unchanged.
+
+---
+
+# 13. Model/provider configuration
+
+Keep the provider boundary provider-neutral.
+
+Reuse the existing OpenRouter configuration and selected model strategy where appropriate, but do not alter the Phase 1 parser's behavior.
+
+The new service should have its own structured schema and validation.
+
+Use strict structured output.
+
+Do not send full conversation history.
+
+Do not include secrets in frontend code.
+
+Do not log raw user task content or raw provider responses as diagnostics unless the existing privacy-safe diagnostic system explicitly supports that and the data is necessary.
+
+---
+
+# 14. Backend tests
+
+Add tests for:
+
+### AI breakdown validation
+
+Verify:
+
+* valid structured breakdown passes
+* malformed response is rejected
+* missing actions is rejected
+* empty action labels are rejected
+* duplicate/invalid actions are rejected where appropriate
+
+### Proposal creation
+
+Verify:
+
+* breakdown creates `task-breakdown`
+* proposal references correct task
+* task remains unchanged before approval
+
+### Approval
+
+Verify:
+
+* approval applies the breakdown
+* actions are ordered correctly
+* completed actions remain completed
+* task is not accidentally completed
+
+### Rejection
+
+Verify:
+
+* rejection leaves the task unchanged
+
+### Adjustment
+
+Verify:
+
+* edited action list is committed only after explicit adjustment
+* invalid adjusted data is rejected safely
+
+### Existing behavior
+
+Make sure task creation, action completion, task completion, and Phase 1 parsing still work.
+
+---
+
+# 15. Frontend tests
+
+Add tests where practical for:
+
+* clicking Break this down starts the loading state
+* successful response opens the review UI
+* proposed actions render in order
+* editing an action updates the local proposal
+* rejecting/closing leaves the task unchanged
+* approval refreshes the task
+* the next unfinished action becomes the visible task action
+* completed actions remain completed
+
+Keep existing Start Task tests passing.
+
+---
+
+# 16. Live verification
+
+Because OpenRouter is already configured, perform at least one real backend breakdown request with a synthetic task.
+
+Use a task broad enough to require several steps, for example:
+
+**“Write my English essay due Friday.”**
+
+Do not save it automatically.
+
+Verify that the real AI response:
+
+* contains multiple actions
+* produces actionable steps
+* does not simply repeat the task name
+* validates through Python
+* produces a proposal
+* does not modify the task before approval
+
+Do not record hidden reasoning or raw provider output in the progress file.
+
+---
+
+# 17. Progress file
+
+Update:
+
+`.mypla-foundation-progress.txt`
+
+with a new section:
+
+**LATEST TASK BREAKDOWN UPDATE**
+
+Document:
+
+* AI task breakdown is implemented
+* proposal/review/approval flow
+* completed-action preservation
+* number/type of tests passing
+* live OpenRouter verification result
+* any known limitations
+
+Clearly distinguish verified behavior from unverified authenticated browser behavior.
+
+---
+
+# 18. Important architectural rule
+
+Do not turn this into a generic “AI does everything” feature.
+
+The purpose is:
+
+**AI proposes a useful breakdown.**
+
+Python owns:
+
+* task state
+* ordering
+* completion
+* persistence
+* proposal approval
+* validation
+* permissions
+* deterministic behavior
+
+The user owns:
+
+* whether the breakdown is acceptable
+* edits
+* approval
+* rejection
+
+That human-in-the-loop boundary must remain intact.
+
+---
+
+# 19. Do not expand scope
+
+Do NOT implement in this task:
+
+* Coach Memory
+* weekly reflection AI analysis
+* scheduling AI
+* resource recommendations
+* personalized priority learning
+* automatic task rescheduling
+* MyRPG
+* Profile personalization
+* recursive nested mission UI
+* autonomous AI task changes
+
+Those are later phases.
+
+The focus is specifically:
+
+**Task → AI breakdown → user review → approved actions → next-action workflow**
+
+---
+
+# 20. Verification commands
+
+Run:
+
+```text
+python3 -m pytest -q
+bun test
+bun run build
+bunx eslint <changed frontend files>
+git diff --check
+```
+
+Also verify the application still starts successfully.
+
+Stop after the AI Task Breakdown feature is implemented and verified.

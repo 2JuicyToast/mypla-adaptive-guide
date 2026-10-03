@@ -6,10 +6,12 @@ from typing import Any, Protocol
 
 from pydantic import ValidationError
 
-from backend.models import EnergyLevel, Priority, TaskCreate
+from backend.models import EnergyLevel, Priority, Task, TaskCreate
 from backend.services.ai_diagnostics import log_ai_parse_metadata
 from backend.services.ai_errors import InvalidTaskDraftError
 from backend.services.openrouter_task_parser import OpenRouterTaskParser
+from backend.services.openrouter_task_breakdown import OpenRouterTaskBreakdownProvider
+from backend.services.task_breakdown import TaskBreakdown, validate_task_breakdown
 
 
 _CONVERSATIONAL_PREFIX = re.compile(
@@ -133,9 +135,22 @@ class TaskParser(Protocol):
     def parse(self, text: str) -> dict[str, Any]: ...
 
 
+class TaskBreakdownProvider(Protocol):
+    provider_name: str
+
+    def break_down(self, task_context: dict[str, Any]) -> dict[str, Any]: ...
+
+
 class AIService:
-    def __init__(self, parser: TaskParser | None = None) -> None:
+    def __init__(
+        self,
+        parser: TaskParser | None = None,
+        task_breakdown_provider: TaskBreakdownProvider | None = None,
+    ) -> None:
         self.parser = parser or OpenRouterTaskParser()
+        self.task_breakdown_provider = (
+            task_breakdown_provider or OpenRouterTaskBreakdownProvider()
+        )
 
     def parse_task(self, text: str) -> dict[str, Any]:
         cleaned = text.strip()
@@ -161,6 +176,35 @@ class AIService:
             "message": "Review or edit this task draft. Nothing is saved until you add it to your plan.",
             "provider": self.parser.provider_name,
         }
+
+    def break_down_task(self, task: Task) -> TaskBreakdown:
+        """Return a validated breakdown without writing task or proposal data."""
+        unfinished_actions = [
+            action
+            for action in sorted(task.actions, key=lambda item: item.position)
+            if not action.done
+        ]
+        task_context = {
+            "taskName": task.name,
+            "description": task.description,
+            "course": task.course,
+            "category": task.category,
+            "dueDate": task.due_date.isoformat() if task.due_date else None,
+            "estimatedMinutes": task.estimated_minutes,
+            "priority": task.priority,
+            "energyRequired": task.energy_required,
+            "unfinishedActions": [
+                {
+                    "label": action.label,
+                    "description": action.description,
+                    "estimatedMinutes": action.estimated_minutes,
+                    "energyRequired": action.energy_required,
+                }
+                for action in unfinished_actions
+            ],
+        }
+        raw_breakdown = self.task_breakdown_provider.break_down(task_context)
+        return validate_task_breakdown(raw_breakdown, task)
 
     def stuck_response(self) -> dict:
         return {

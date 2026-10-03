@@ -15,6 +15,7 @@ from backend.models import (
     Assumption,
     AssumptionResponse,
     Proposal,
+    ProposalChange,
     ProposalCreate,
     Reflection,
     Resource,
@@ -24,6 +25,7 @@ from backend.models import (
     Task,
     TaskCreate,
     TaskPatch,
+    TaskStatus,
     utc_now,
 )
 from backend.services.ai_service import AIService, export_for_myrpg
@@ -40,6 +42,7 @@ from backend.services.priority_engine import PriorityEngine
 from backend.services.proposals import ProposalService
 from backend.services.scheduler import Scheduler
 from backend.services.task_manager import TaskManager
+from backend.services.task_breakdown import InvalidTaskBreakdownError
 
 app = FastAPI(
     title="MyPLA API",
@@ -155,6 +158,88 @@ def complete_action(task_id: str, action_id: str, context: Context) -> Task:
 @app.get("/api/tasks/{task_id}/next-action")
 def next_action(task_id: str, context: Context) -> dict | None:
     return context.tasks.get_next_action(task_id)
+
+
+@app.post(
+    "/api/tasks/{task_id}/breakdown",
+    response_model=Proposal,
+    status_code=201,
+)
+def create_task_breakdown(task_id: str, context: Context) -> Proposal:
+    """Return an unsaved-in-task proposal; only proposal approval commits actions."""
+    task = context.tasks.find_task(task_id)
+    if task.status == TaskStatus.DONE:
+        raise HTTPException(status_code=409, detail="A completed task cannot be broken down.")
+
+    try:
+        breakdown = ai_service.break_down_task(task)
+    except AIConfigurationError:
+        raise HTTPException(
+            status_code=503,
+            detail="MyPLA could not create a breakdown right now. Your task was not changed. Try again later.",
+        ) from None
+    except AIRateLimitedError:
+        raise HTTPException(
+            status_code=429,
+            detail="MyPLA is temporarily rate limited. Your task was not changed. Try again shortly.",
+        ) from None
+    except IncompleteStructuredOutputError:
+        raise HTTPException(
+            status_code=502,
+            detail="MyPLA received an incomplete breakdown. Your task was not changed. Try again.",
+        ) from None
+    except MalformedStructuredOutputError:
+        raise HTTPException(
+            status_code=502,
+            detail="MyPLA received invalid breakdown data. Your task was not changed. Try again.",
+        ) from None
+    except AIProviderUnavailableError:
+        raise HTTPException(
+            status_code=503,
+            detail="MyPLA could not create a breakdown right now. Your task was not changed. Try again later.",
+        ) from None
+    except InvalidTaskBreakdownError:
+        raise HTTPException(
+            status_code=422,
+            detail="MyPLA could not create a valid breakdown. Your task was not changed. Try again.",
+        ) from None
+
+    task_name = task.name.strip()
+    if len(task_name) > 205:
+        task_name = f"{task_name[:202].rstrip()}..."
+    current_action_count = sum(not action.done for action in task.actions)
+    suggested_action_count = len(breakdown.actions)
+    proposal = ProposalCreate(
+        kind="task-breakdown",
+        title=f"Break {task_name} into smaller steps",
+        rationale=(
+            "Here is one way I would break this down. Review or adjust the steps before "
+            "anything changes."
+        ),
+        related_task_id=task.id,
+        proposed_changes={
+            "taskPatch": {
+                "actions": [
+                    action.model_dump(by_alias=True, exclude_none=True)
+                    for action in breakdown.actions
+                ]
+            }
+        },
+        changes=[
+            ProposalChange(
+                field="Unfinished actions",
+                before=(
+                    f"{current_action_count} "
+                    f"{'action' if current_action_count == 1 else 'actions'}"
+                ),
+                after=(
+                    f"{suggested_action_count} suggested "
+                    f"{'action' if suggested_action_count == 1 else 'actions'}"
+                ),
+            )
+        ],
+    )
+    return context.proposals.create(proposal)
 
 
 class ReorderRequest(BaseModel):
