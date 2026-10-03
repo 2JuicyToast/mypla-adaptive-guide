@@ -254,7 +254,7 @@ export function StartTaskDialog({
                     <legend className="mb-2 text-sm font-semibold">
                       How are you feeling about starting?
                     </legend>
-                    <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-2">
                       {contextChoices.map((choice) => (
                         <button
                           key={choice.value}
@@ -264,7 +264,7 @@ export function StartTaskDialog({
                             onSessionChange(chooseTaskSessionContext(session, choice.value))
                           }
                           className={cn(
-                            "min-h-11 rounded-lg border px-3 py-2.5 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                            "min-h-11 w-full min-w-0 whitespace-normal rounded-lg border px-4 py-3 text-left text-sm font-medium leading-snug transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                             session.context === choice.value
                               ? "border-primary bg-primary/10 text-primary"
                               : "border-border bg-background hover:bg-muted/70",
